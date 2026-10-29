@@ -34,10 +34,10 @@
             <div
                 class="col-name"
                 :style="{ width: colWidths.name + 'px' }"
-                @click="sortBy('name')"
+                @click="view.setSort('name')"
             >
                 {{ t("fileList.name")
-                }}{{ sortField === "name" ? (sortAsc ? " ▲" : " ▼") : "" }}
+                }}{{ view.sortField === "name" ? (view.sortAsc ? " ▲" : " ▼") : "" }}
                 <div
                     class="col-handle"
                     @mousedown.stop="onResizeStart('name', $event)"
@@ -50,10 +50,10 @@
                 class="col-date"
                 v-if="view.viewMode === 'details'"
                 :style="{ width: colWidths.date + 'px' }"
-                @click="sortBy('modified')"
+                @click="view.setSort('modified')"
             >
                 {{ t("fileList.dateModified")
-                }}{{ sortField === "modified" ? (sortAsc ? " ▲" : " ▼") : "" }}
+                }}{{ view.sortField === "modified" ? (view.sortAsc ? " ▲" : " ▼") : "" }}
                 <div
                     class="col-handle"
                     @mousedown.stop="onResizeStart('date', $event)"
@@ -63,17 +63,17 @@
                 class="col-created"
                 v-if="view.viewMode === 'details'"
                 :style="{ width: colWidths.created + 'px' }"
-                @click="sortBy('created')"
+                @click="view.setSort('created')"
             >
                 {{ t("fileList.dateCreated")
-                }}{{ sortField === "created" ? (sortAsc ? " ▲" : " ▼") : "" }}
+                }}{{ view.sortField === "created" ? (view.sortAsc ? " ▲" : " ▼") : "" }}
                 <div
                     class="col-handle"
                     @mousedown.stop="onResizeStart('created', $event)"
                 ></div>
             </div>
-            <div class="col-type" :style="{ width: colWidths.type + 'px' }">
-                {{ t("fileList.type") }}
+            <div class="col-type" :style="{ width: colWidths.type + 'px' }" @click="view.setSort('type')">
+                {{ t("fileList.type") }}{{ view.sortField === "type" ? (view.sortAsc ? " ▲" : " ▼") : "" }}
                 <div
                     class="col-handle"
                     @mousedown.stop="onResizeStart('type', $event)"
@@ -82,10 +82,10 @@
             <div
                 class="col-size"
                 :style="{ width: colWidths.size + 'px' }"
-                @click="sortBy('size')"
+                @click="view.setSort('size')"
             >
                 {{ t("fileList.size")
-                }}{{ sortField === "size" ? (sortAsc ? " ▲" : " ▼") : "" }}
+                }}{{ view.sortField === "size" ? (view.sortAsc ? " ▲" : " ▼") : "" }}
             </div>
         </div>
 
@@ -228,9 +228,7 @@ function onColumnStackUpdate(newStack: ColumnState[]) {
     }
 }
 
-// ── Sort state ──
-const sortField = ref<"name" | "modified" | "created" | "size">("name");
-const sortAsc = ref(true);
+// ── Sort state (persisted in viewStore) ──
 const listEl = ref<HTMLElement | null>(null);
 
 const displayFiles = computed(() => {
@@ -239,35 +237,35 @@ const displayFiles = computed(() => {
         let cmp = 0;
         if (a.is_dir && !b.is_dir) return -1;
         if (!a.is_dir && b.is_dir) return 1;
-        switch (sortField.value) {
+        switch (view.sortField) {
             case "name":
                 cmp = a.name.localeCompare(b.name, undefined, {
                     sensitivity: "base",
                 });
                 break;
             case "modified":
-                cmp = b.modified - a.modified;
+                cmp = (b.modified || 0) - (a.modified || 0);
                 break;
             case "created":
-                cmp = b.created - a.created;
+                cmp = (b.created || 0) - (a.created || 0);
                 break;
             case "size":
-                cmp = b.size - a.size;
+                cmp = (b.size || 0) - (a.size || 0);
                 break;
+            case "type": {
+                const extA = (a.extension || a.name.split(".").pop() || "").toLowerCase();
+                const extB = (b.extension || b.name.split(".").pop() || "").toLowerCase();
+                cmp = extA.localeCompare(extB, undefined, { sensitivity: "base" });
+                if (cmp === 0) {
+                    cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+                }
+                break;
+            }
         }
-        return sortAsc.value ? cmp : -cmp;
+        return view.sortAsc ? cmp : -cmp;
     });
     return sorted;
 });
-
-function sortBy(field: "name" | "modified" | "created" | "size") {
-    if (sortField.value === field) {
-        sortAsc.value = !sortAsc.value;
-    } else {
-        sortField.value = field;
-        sortAsc.value = true;
-    }
-}
 
 // ── Column resize ──
 const colWidths = reactive<Record<string, number>>(loadCW());

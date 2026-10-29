@@ -1,5 +1,5 @@
 <template>
-    <div class="code-root" :style="{ fontSize: FONT_SIZES[settings.fontSize] }">
+    <div class="code-root" :style="{ fontSize: codeFontSize }">
         <Codemirror
             :key="editorKey"
             v-model:value="codeText"
@@ -72,6 +72,7 @@ const codeText = ref(props.code);
 const cmRef = ref<CmComponentRef>();
 
 // ── Font size from settings ──
+const codeFontSize = computed(() => typeof settings.fontSize === 'number' ? settings.fontSize + 'px' : (FONT_SIZES[settings.fontSize] || settings.fontSize + 'px'));
 const FONT_SIZES: Record<string, string> = {
     small: "11px",
     medium: "13px",

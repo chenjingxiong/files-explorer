@@ -226,6 +226,21 @@
                     </div>
                 </div>
             </div>
+            <button
+                class="icon-btn ribbon-toggle-btn"
+                :title="settings.ribbonCollapsed ? t('toolbar.expandRibbon') : t('toolbar.collapseRibbon')"
+                @click="settings.toggleRibbon()"
+            >
+                <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+                    <path
+                        :d="settings.ribbonCollapsed ? 'M3 6l5 5 5-5' : 'M3 10l5-5 5 5'"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    />
+                </svg>
+            </button>
         </div>
     </div>
 </template>
@@ -671,5 +686,22 @@ loadSearchHistory();
     height: 14px;
     color: var(--text-muted);
     flex-shrink: 0;
+}
+.ribbon-toggle-btn {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    flex-shrink: 0;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+.ribbon-toggle-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
 }
 </style>

@@ -535,6 +535,17 @@
                 <span class="ribbon-label">{{ t("statusBar.terminal") }}</span>
             </button>
         </div>
+        <div class="ribbon-spacer"></div>
+        <button
+            class="ribbon-btn ribbon-collapse-btn"
+            :title="t('toolbar.collapseRibbon')"
+            @click="settings.toggleRibbon()"
+        >
+            <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+                <path d="M3 10l5-5 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="ribbon-label">{{ t('toolbar.collapseRibbon') }}</span>
+        </button>
     </div>
 </template>
 
@@ -544,11 +555,13 @@ import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { useSelectionStore } from "@/stores/selectionStore";
 import { useViewStore } from "@/stores/viewStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 const { t } = useI18n();
 const store = useFileStore();
 const sel = useSelectionStore();
 const view = useViewStore();
+const settings = useSettingsStore();
 
 const emit = defineEmits<{ action: [action: string]; toggleTerminal: [] }>();
 
@@ -648,5 +661,11 @@ const selectedCount = computed(() => sel.selectedFiles.size);
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
     line-height: 1;
+}
+.ribbon-spacer {
+    flex: 1;
+}
+.ribbon-collapse-btn {
+    margin-left: auto;
 }
 </style>

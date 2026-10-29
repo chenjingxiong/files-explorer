@@ -4,6 +4,7 @@ import { useFileStore } from "@/stores/fileStore";
 import { useSelectionStore } from "@/stores/selectionStore";
 import { useDeleteStore } from "@/stores/deleteStore";
 import { useTabStore } from "@/stores/tabStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 
 export function useKeyboardShortcuts(handlers: {
   onTabClose: (paneId: string, tabId: string) => void;
@@ -79,6 +80,10 @@ export function useKeyboardShortcuts(handlers: {
         .catch((e) =>
           handlers.showToast(t("toast.undoFailed", { error: String(e) }), true),
         );
+    } else if (ctrl && e.key === "F1") {
+      e.preventDefault();
+      const settings = useSettingsStore();
+      settings.toggleRibbon();
     } else if (ctrl && e.key === "w") {
       e.preventDefault();
       const fp = tabStore.getFocusedPane();

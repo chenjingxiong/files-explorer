@@ -21,6 +21,8 @@ pub struct SetupState {
 pub fn init_logging() {
     logger::init();
     tracing::info!("=== Files Explorer started ===");
+    #[cfg(target_os = "windows")]
+    crate::platform::windows::win_context::init_cache_background();
 }
 
 /// Build the Tauri application.
@@ -101,6 +103,8 @@ pub fn build_app() -> tauri::App {
             crate::terminal_kill,
             crate::terminal_kill_all,
             crate::get_default_shell,
+            crate::get_windows_context_menu,
+            crate::execute_windows_context_item,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

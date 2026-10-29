@@ -409,6 +409,34 @@ fn clear_window_state() -> Result<(), FsError> {
     Ok(())
 }
 
+// ── Windows Context Menu ──
+#[command]
+fn get_windows_context_menu() -> Result<Vec<crate::platform::windows::win_context::WinContextItem>, FsError> {
+    #[cfg(target_os = "windows")]
+    {
+        crate::platform::windows::win_context::get_context_menu_impl()
+            .map_err(|e| FsError::Other(e))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(Vec::new())
+    }
+}
+
+#[command]
+fn execute_windows_context_item(command: String, target_path: String) -> Result<(), FsError> {
+    #[cfg(target_os = "windows")]
+    {
+        crate::platform::windows::win_context::execute_context_item_impl(command, target_path)
+            .map_err(|e| FsError::Other(e))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (command, target_path);
+        Ok(())
+    }
+}
+
 // ── Entry ──
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

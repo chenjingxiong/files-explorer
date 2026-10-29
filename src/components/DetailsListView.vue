@@ -54,6 +54,7 @@ import { ref, computed } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import { useFileStore } from "@/stores/fileStore";
 import { useSelectionStore } from "@/stores/selectionStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import type { FileEntry } from "@/types";
 import FileItem from "@/components/FileItem.vue";
 
@@ -72,9 +73,15 @@ defineEmits<{
 
 const store = useFileStore();
 const sel = useSelectionStore();
+const settings = useSettingsStore();
 
 const containerRef = ref<HTMLElement | null>(null);
-const rowHeight = computed(() => (props.compact ? 28 : 32));
+const rowHeight = computed(() => {
+    const base = typeof settings.fontSize === "number" ? settings.fontSize : 13;
+    return props.compact
+        ? Math.max(24, Math.round(base * 1.9))
+        : Math.max(28, Math.round(base * 2.3));
+});
 
 const virtualizer = useVirtualizer(
     computed(() => ({

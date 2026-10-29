@@ -9,7 +9,7 @@ export type ThemeMode =
   | "one-dark-pro"
   | "dracula"
   | "solarized-light";
-export type FontSize = "small" | "medium" | "large";
+export type FontSize = number | "small" | "medium" | "large";
 export type IconTheme = "fluent" | "material" | "material-full";
 export type TermEmulation =
   "xterm-256color" | "xterm" | "xterm-direct" | "vt100" | "linux";
@@ -57,7 +57,7 @@ export interface Bookmark {
 export interface AppSettings {
   theme: ThemeMode;
   locale: string;
-  fontSize: FontSize;
+  fontSize: number;
   iconTheme: IconTheme;
   autoStart: boolean;
   showTray: boolean;
@@ -67,6 +67,7 @@ export interface AppSettings {
   termFontSize: TermFontSize;
   termFontFamily: TermFontFamily;
   termFontCustom: string;
+  ribbonCollapsed?: boolean;
 }
 
 function loadBookmarks(): Bookmark[] {
@@ -86,6 +87,26 @@ function saveBookmarks(bookmarks: Bookmark[]) {
   localStorage.setItem("app-bookmarks", JSON.stringify(normalized));
 }
 
+export function parseFontSize(val: any): number {
+  if (typeof val === "number" && !isNaN(val)) {
+    return Math.min(Math.max(Math.round(val), 10), 24);
+  }
+  if (val === "small") return 11;
+  if (val === "large") return 16;
+  if (val === "medium") return 13;
+  const num = parseInt(val, 10);
+  if (!isNaN(num)) return Math.min(Math.max(num, 10), 24);
+  return 13;
+}
+
+function loadRibbonCollapsed(): boolean {
+  try {
+    return localStorage.getItem("app-ribbon-collapsed") === "true";
+  } catch {
+    return false;
+  }
+}
+
 function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem("app-settings");
@@ -94,7 +115,7 @@ function loadSettings(): AppSettings {
       return {
         theme: parsed.theme || "dark",
         locale: parsed.locale || localStorage.getItem("app-locale") || "zh",
-        fontSize: parsed.fontSize || "medium",
+        fontSize: parseFontSize(parsed.fontSize),
         iconTheme: parsed.iconTheme || "fluent",
         autoStart: parsed.autoStart ?? true,
         showTray: parsed.showTray ?? true,
@@ -104,13 +125,14 @@ function loadSettings(): AppSettings {
         termFontSize: parsed.termFontSize || 13,
         termFontFamily: parsed.termFontFamily || "jetbrains-mono",
         termFontCustom: parsed.termFontCustom || "",
+        ribbonCollapsed: loadRibbonCollapsed(),
       };
     }
   } catch {}
   return {
     theme: "dark",
     locale: localStorage.getItem("app-locale") || "zh",
-    fontSize: "medium",
+    fontSize: 13,
     iconTheme: "fluent",
     autoStart: true,
     showTray: true,
@@ -120,6 +142,7 @@ function loadSettings(): AppSettings {
     termFontSize: 13,
     termFontFamily: "jetbrains-mono",
     termFontCustom: "",
+    ribbonCollapsed: loadRibbonCollapsed(),
   };
 }
 
@@ -131,19 +154,29 @@ function applyTheme(theme: ThemeMode) {
   document.documentElement.setAttribute("data-theme", theme);
 }
 
-function applyFontSize(size: FontSize) {
-  document.documentElement.setAttribute("data-font-size", size);
+export function applyFontSize(size: number | string) {
+  const base = parseFontSize(size);
+  document.documentElement.setAttribute("data-font-size", String(base));
+  document.documentElement.style.setProperty("--font-size-base", `${base}px`);
+  document.documentElement.style.setProperty("--font-size-sm", `${Math.max(9, Math.round(base * 0.85))}px`);
+  document.documentElement.style.setProperty("--font-size-xs", `${Math.max(8, Math.round(base * 0.77))}px`);
+  document.documentElement.style.setProperty("--font-size-lg", `${Math.round(base * 1.18)}px`);
+  document.documentElement.style.setProperty("--font-size-xl", `${Math.round(base * 1.38)}px`);
+  document.documentElement.style.setProperty("--font-size-2xl", `${Math.round(base * 1.65)}px`);
+  document.documentElement.style.setProperty("--row-height", `${Math.max(28, Math.round(base * 2.3))}px`);
+  document.documentElement.style.setProperty("--row-height-compact", `${Math.max(24, Math.round(base * 1.9))}px`);
 }
 
 export const useSettingsStore = defineStore("settings", () => {
   const initial = loadSettings();
   const theme = ref<ThemeMode>(initial.theme);
   const locale = ref<string>(initial.locale);
-  const fontSize = ref<FontSize>(initial.fontSize);
+  const fontSize = ref<number>(parseFontSize(initial.fontSize));
   const iconTheme = ref<IconTheme>(initial.iconTheme);
   const autoStart = ref<boolean>(initial.autoStart ?? true);
   const showTray = ref<boolean>(initial.showTray ?? true);
   const quitOnClose = ref<boolean>(initial.quitOnClose ?? false);
+  const ribbonCollapsed = ref<boolean>(initial.ribbonCollapsed ?? false);
   const termEmulation = ref<TermEmulation>(
     initial.termEmulation || "xterm-256color",
   );
@@ -169,15 +202,26 @@ export const useSettingsStore = defineStore("settings", () => {
     persist();
   }
 
-  function setFontSize(s: FontSize) {
-    fontSize.value = s;
-    applyFontSize(s);
+  function setFontSize(s: number | string) {
+    const val = parseFontSize(s);
+    fontSize.value = val;
+    applyFontSize(val);
     persist();
   }
 
   function setIconTheme(t: IconTheme) {
     iconTheme.value = t;
     persist();
+  }
+
+  function setRibbonCollapsed(v: boolean) {
+    ribbonCollapsed.value = v;
+    localStorage.setItem("app-ribbon-collapsed", String(v));
+    persist();
+  }
+
+  function toggleRibbon() {
+    setRibbonCollapsed(!ribbonCollapsed.value);
   }
 
   async function setAutoStart(v: boolean) {
@@ -300,6 +344,7 @@ export const useSettingsStore = defineStore("settings", () => {
       termFontSize: termFontSize.value,
       termFontFamily: termFontFamily.value,
       termFontCustom: termFontCustom.value,
+      ribbonCollapsed: ribbonCollapsed.value,
     });
   }
 
@@ -311,6 +356,7 @@ export const useSettingsStore = defineStore("settings", () => {
     autoStart,
     showTray,
     quitOnClose,
+    ribbonCollapsed,
     bookmarks,
     addBookmark,
     removeBookmark,
@@ -320,6 +366,8 @@ export const useSettingsStore = defineStore("settings", () => {
     setLocale,
     setFontSize,
     setIconTheme,
+    setRibbonCollapsed,
+    toggleRibbon,
     setAutoStart,
     setShowTray,
     setQuitOnClose,

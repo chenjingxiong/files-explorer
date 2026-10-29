@@ -35,7 +35,16 @@ export interface ContextMenuOption {
   icon?: string;
   separator?: boolean;
   disabled?: boolean;
+  checked?: boolean;
   children?: ContextMenuOption[];
+}
+
+export interface WinContextItem {
+  id: string;
+  title: string;
+  command: string;
+  icon?: string;
+  applies_to: string; // "file" | "directory" | "background" | "all"
 }
 
 export interface ClipboardInfo {

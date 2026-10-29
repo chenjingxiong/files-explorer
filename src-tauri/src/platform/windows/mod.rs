@@ -4,6 +4,7 @@
 mod fs_impl;
 mod path_impl;
 mod system_impl;
+pub mod win_context;
 
 pub use fs_impl::FsExtImpl;
 pub use path_impl::PathImpl;

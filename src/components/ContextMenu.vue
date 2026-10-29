@@ -8,32 +8,54 @@
         <template v-for="(item, i) in items" :key="i">
             <div v-if="item.separator" class="context-menu-separator"></div>
             <div
-                v-else-if="item.children"
+                v-else-if="item.children && item.children.length > 0"
                 class="context-menu-item has-sub"
                 @mouseenter="subId = i"
                 @mouseleave="onSubLeave"
             >
-                <span
-                    v-if="item.icon"
-                    class="menu-icon"
-                    v-html="item.icon"
-                ></span>
-                <span>{{ item.label }}</span>
+                <div class="item-left">
+                    <span v-if="item.checked" class="check-mark">✓</span>
+                    <span
+                        v-else-if="item.icon"
+                        class="menu-icon"
+                        v-html="item.icon"
+                    ></span>
+                    <span v-else class="menu-icon-placeholder"></span>
+                    <span class="item-label">{{ item.label }}</span>
+                </div>
                 <span class="arrow">▶</span>
-                <div v-if="subId === i" class="submenu" @mouseenter="subId = i">
-                    <div
-                        v-for="child in item.children"
-                        :key="child.action"
-                        class="context-menu-item"
-                        @click.stop="onChildClick(child.action)"
-                    >
-                        <span
-                            v-if="child.icon"
-                            class="menu-icon"
-                            v-html="child.icon"
-                        ></span>
-                        <span>{{ child.label }}</span>
-                    </div>
+                <div
+                    v-if="subId === i"
+                    class="submenu"
+                    :class="{ 'submenu-left': openSubLeft }"
+                    @mouseenter="subId = i"
+                >
+                    <template v-for="(child, ci) in item.children" :key="ci">
+                        <div
+                            v-if="child.separator"
+                            class="context-menu-separator"
+                        ></div>
+                        <div
+                            v-else
+                            class="context-menu-item"
+                            :class="{ disabled: child.disabled }"
+                            @click.stop="!child.disabled && onChildClick(child.action)"
+                        >
+                            <div class="item-left">
+                                <span v-if="child.checked" class="check-mark">✓</span>
+                                <span
+                                    v-else-if="child.icon"
+                                    class="menu-icon"
+                                    v-html="child.icon"
+                                ></span>
+                                <span v-else class="menu-icon-placeholder"></span>
+                                <span class="item-label">{{ child.label }}</span>
+                            </div>
+                            <span v-if="child.shortcut" class="shortcut">{{
+                                child.shortcut
+                            }}</span>
+                        </div>
+                    </template>
                 </div>
             </div>
             <div
@@ -42,12 +64,16 @@
                 :class="{ disabled: item.disabled }"
                 @click="!item.disabled && onItemClick(item.action)"
             >
-                <span
-                    v-if="item.icon"
-                    class="menu-icon"
-                    v-html="item.icon"
-                ></span>
-                <span>{{ item.label }}</span>
+                <div class="item-left">
+                    <span v-if="item.checked" class="check-mark">✓</span>
+                    <span
+                        v-else-if="item.icon"
+                        class="menu-icon"
+                        v-html="item.icon"
+                    ></span>
+                    <span v-else class="menu-icon-placeholder"></span>
+                    <span class="item-label">{{ item.label }}</span>
+                </div>
                 <span v-if="item.shortcut" class="shortcut">{{
                     item.shortcut
                 }}</span>
@@ -82,6 +108,7 @@ const adjX = computed(() => Math.min(props.x, window.innerWidth - 240));
 const adjY = computed(() =>
     Math.min(props.y, window.innerHeight - (props.items.length * 32 + 20)),
 );
+const openSubLeft = computed(() => adjX.value > window.innerWidth - 420);
 
 function onItemClick(action: string) {
     emit("action", action);
@@ -93,7 +120,7 @@ function onChildClick(action: string) {
 function onSubLeave() {
     setTimeout(() => {
         subId.value = null;
-    }, 100);
+    }, 120);
 }
 </script>
 
@@ -105,7 +132,7 @@ function onSubLeave() {
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 4px;
-    min-width: 200px;
+    min-width: 210px;
     box-shadow: 0 8px 32px var(--shadow);
 }
 .context-menu-item {
@@ -118,6 +145,35 @@ function onSubLeave() {
     cursor: pointer;
     font-size: var(--font-size-base);
     position: relative;
+    user-select: none;
+}
+.item-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+.item-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.check-mark {
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--accent);
+    flex-shrink: 0;
+}
+.menu-icon-placeholder {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
 }
 .menu-icon {
     width: 14px;
@@ -145,6 +201,7 @@ function onSubLeave() {
 .context-menu-item .shortcut {
     color: var(--text-muted);
     font-size: var(--font-size-sm);
+    margin-left: 12px;
 }
 .arrow {
     font-size: var(--font-size-xs);
@@ -164,8 +221,14 @@ function onSubLeave() {
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 4px;
-    min-width: 140px;
+    min-width: 180px;
+    max-height: 400px;
+    overflow-y: auto;
     box-shadow: 0 4px 16px var(--shadow);
     z-index: 1001;
+}
+.submenu-left {
+    left: auto !important;
+    right: 100% !important;
 }
 </style>

@@ -285,3 +285,15 @@ export async function saveTextFile(
     content,
   });
 }
+
+
+export async function getWindowsContextMenu(): Promise<import('@/types').WinContextItem[]> {
+  return invoke('get_windows_context_menu');
+}
+
+export async function executeWindowsContextItem(
+  command: string,
+  targetPath: string,
+): Promise<void> {
+  return invoke('execute_windows_context_item', { command, targetPath: normalizePath(targetPath) });
+}

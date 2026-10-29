@@ -12,10 +12,48 @@ export interface ColumnState {
   loading: boolean;
 }
 
+export type SortField = "name" | "modified" | "created" | "size" | "type";
+
+function loadSortField(): SortField {
+  try {
+    const f = localStorage.getItem("app-sort-field");
+    if (f === "name" || f === "modified" || f === "created" || f === "size" || f === "type") {
+      return f;
+    }
+  } catch {}
+  return "name";
+}
+
+function loadSortAsc(): boolean {
+  try {
+    return localStorage.getItem("app-sort-asc") !== "false";
+  } catch {
+    return true;
+  }
+}
+
 export const useViewStore = defineStore("view", () => {
   const viewMode = ref<"details" | "list" | "grid" | "tree" | "column">(
     "details",
   );
+
+  // ── Sorting preference state ──
+  const sortField = ref<SortField>(loadSortField());
+  const sortAsc = ref<boolean>(loadSortAsc());
+
+  function setSort(field: SortField, asc?: boolean) {
+    if (asc !== undefined) {
+      sortField.value = field;
+      sortAsc.value = asc;
+    } else if (sortField.value === field) {
+      sortAsc.value = !sortAsc.value;
+    } else {
+      sortField.value = field;
+      sortAsc.value = true;
+    }
+    localStorage.setItem("app-sort-field", sortField.value);
+    localStorage.setItem("app-sort-asc", String(sortAsc.value));
+  }
 
   // ── Tree view state ──
   const treeExpanded = ref<Set<string>>(new Set());
@@ -170,6 +208,9 @@ export const useViewStore = defineStore("view", () => {
 
   return {
     viewMode,
+    sortField,
+    sortAsc,
+    setSort,
     treeExpanded,
     treeChildrenCache,
     toggleTreeExpand,

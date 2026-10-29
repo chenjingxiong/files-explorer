@@ -3,8 +3,9 @@ import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { useSelectionStore } from "@/stores/selectionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { getClipboardInfo } from "@/utils/tauri";
-import type { ContextMenuOption } from "@/types";
+import { useViewStore } from "@/stores/viewStore";
+import { getClipboardInfo, getWindowsContextMenu } from "@/utils/tauri";
+import type { ContextMenuOption, WinContextItem } from "@/types";
 
 // ── Menu icons (14x14 viewBox SVG paths) ──
 const I = {
@@ -27,16 +28,38 @@ const I = {
   showInExplorer: `<svg viewBox="0 0 14 14"><path d="M8 2h4v4M6 8l6-6M4 3H3a1 1 0 00-1 1v7a1 1 0 001 1h7a1 1 0 001-1v-1" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   selectAll: `<svg viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 1.5"/><path d="M4.5 7l2 2 3.5-4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   refresh: `<svg viewBox="0 0 14 14"><path d="M2 7a5 5 0 015-5 4.9 4.9 0 013.5 1.5M12 7a5 5 0 01-5 5 4.9 4.9 0 01-3.5-1.5" fill="none" stroke="currentColor" stroke-width="1"/><path d="M9.5 2V4.5H12M4.5 12V9.5H2" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-  // Issue 4: 独立图标
   preview: `<svg viewBox="0 0 14 14"><circle cx="5.5" cy="5.5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8l4.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`,
   compress: `<svg viewBox="0 0 14 14"><rect x="2" y="1.5" width="10" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><path d="M5 4h4M5 6h4M7 8v3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>`,
   extract: `<svg viewBox="0 0 14 14"><rect x="2" y="1.5" width="10" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><path d="M5 10h4" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><path d="M7 2v5M5.5 5.5L7 7l1.5-1.5" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  windows: `<svg viewBox="0 0 14 14"><path d="M1.5 2.5L6 1.8v4.7H1.5V2.5zm5 4.7H12.5V1L6.5 1.8v5.4zm-5 1.3H6v4.7L1.5 11.5V8.5zm5 0h6v5.5l-6-.8V8.5z" fill="currentColor"/></svg>`,
+  windowsApp: `<svg viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.1"/><path d="M4 4.5h6M4 7h6M4 9.5h4" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>`,
+  sort: `<svg viewBox="0 0 14 14"><path d="M2.5 3h6M2.5 6h4.5M2.5 9h3M2.5 12h1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M10 9l2 2 2-2M12 4v7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  pin: `<svg viewBox="0 0 14 14"><path d="M9.5 1.5l3 3-1.5 1.5-1-1-3 3 1.5 1.5-1.2 1.2-3-3L1.5 10.5V8l2.8-2.8 1.5 1.5 3-3-1-1 1.7-1.7z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>`,
 };
+
+// ── Background Cached Windows Context Menu Items ──
+export const cachedWinItems = ref<WinContextItem[]>([]);
+let winPreloaded = false;
+
+export async function preloadWinContextMenu() {
+  if (winPreloaded) return;
+  try {
+    const items = await getWindowsContextMenu();
+    cachedWinItems.value = items || [];
+    winPreloaded = true;
+  } catch (e) {
+    console.warn("Failed to load Windows context items:", e);
+  }
+}
+
+// Background pre-fetch immediately
+preloadWinContextMenu();
 
 export function useContextMenu() {
   const { t } = useI18n();
   const store = useFileStore();
   const sel = useSelectionStore();
+  const view = useViewStore();
 
   const isMac =
     typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
@@ -45,13 +68,11 @@ export function useContextMenu() {
   const contextMenuPos = ref({ x: 0, y: 0 });
   const sidebarContextPath = ref("");
   const rightClickedPath = ref("");
-  // Issue 6: 剪贴板内容检测
   const hasClipboardContent = ref(false);
 
   async function openContextMenu(x: number, y: number) {
     contextMenuPos.value = { x, y };
     showContextMenu.value = true;
-    // 检查剪贴板是否包含文件
     try {
       const info = await getClipboardInfo();
       hasClipboardContent.value = info.paths.length > 0;
@@ -78,6 +99,22 @@ export function useContextMenu() {
         icon: I.open,
       });
       return result;
+    }
+
+    // Determine target path & target type (file vs directory vs background)
+    let targetPath = "";
+    let targetType: "file" | "directory" | "background" = "background";
+    if (hasSelection) {
+      targetPath = [...sel.selectedFiles][0] || "";
+      const file = store.files.find((f) => f.path === targetPath);
+      if (file) {
+        targetType = file.is_dir ? "directory" : "file";
+      } else {
+        targetType = targetPath.includes(".") ? "file" : "directory";
+      }
+    } else {
+      targetPath = store.currentPath || "";
+      targetType = "background";
     }
 
     // ── Open / Show / Preview / Terminal ──
@@ -170,28 +207,103 @@ export function useContextMenu() {
       }
     }
 
-    // ── Favorites / Compress / Extract ──
-    if (singleSelection) {
-      const firstPath = [...sel.selectedFiles][0];
-      const file = store.files.find((f) => f.path === firstPath);
-      if (file?.is_dir) {
-        const settings = useSettingsStore();
-        const normPath = firstPath.replace(/\\/g, "/");
-        const isBookmarked = settings.bookmarks.some(
-          (b) => b.path.replace(/\\/g, "/") === normPath,
-        );
+    // ── 5. Quick Access (添加到快捷访问 / 从快捷访问中移除) ──
+    if (targetPath) {
+      const settings = useSettingsStore();
+      const normPath = targetPath.replace(/\\/g, "/");
+      const isBookmarked = settings.bookmarks.some(
+        (b) => b.path.replace(/\\/g, "/") === normPath,
+      );
+      result.push(
+        { label: "", action: "", separator: true },
+        {
+          label: isBookmarked
+            ? t("contextMenu.removeFromQuickAccess")
+            : t("contextMenu.addToQuickAccess"),
+          action: isBookmarked ? "removeFromQuickAccess" : "addToQuickAccess",
+          icon: I.pin,
+        },
+      );
+    }
+
+    // ── 4. Sort By Submenu (以xxx排序，并记住偏好) ──
+    result.push(
+      { label: "", action: "", separator: true },
+      {
+        label: t("contextMenu.sortBy"),
+        action: "sortByMenu",
+        icon: I.sort,
+        children: [
+          {
+            label: t("fileList.name"),
+            action: "sort:name",
+            checked: view.sortField === "name",
+          },
+          {
+            label: t("fileList.dateModified"),
+            action: "sort:modified",
+            checked: view.sortField === "modified",
+          },
+          {
+            label: t("fileList.dateCreated"),
+            action: "sort:created",
+            checked: view.sortField === "created",
+          },
+          {
+            label: t("fileList.size"),
+            action: "sort:size",
+            checked: view.sortField === "size",
+          },
+          {
+            label: t("fileList.type"),
+            action: "sort:type",
+            checked: view.sortField === "type",
+          },
+          { label: "", action: "", separator: true },
+          {
+            label: t("contextMenu.sortAsc"),
+            action: "sort_dir:asc",
+            checked: view.sortAsc,
+          },
+          {
+            label: t("contextMenu.sortDesc"),
+            action: "sort_dir:desc",
+            checked: !view.sortAsc,
+          },
+        ],
+      },
+    );
+
+    // ── 3. Windows System Context Menu (从预存好的后台上下文立即构建) ──
+    if (cachedWinItems.value.length > 0) {
+      const matchingWinItems = cachedWinItems.value.filter((item) => {
+        if (item.applies_to === "all") return true;
+        if (targetType === "background") return item.applies_to === "background";
+        if (targetType === "directory") return item.applies_to === "directory";
+        if (targetType === "file") return item.applies_to === "file";
+        return false;
+      });
+
+      if (matchingWinItems.length > 0) {
+        const winChildren: ContextMenuOption[] = matchingWinItems.map((item) => ({
+          label: item.title,
+          action: `win_verb:${item.id}`,
+          icon: I.windowsApp,
+        }));
+
         result.push(
           { label: "", action: "", separator: true },
           {
-            label: isBookmarked
-              ? t("contextMenu.removeFromFavorites")
-              : t("contextMenu.addToFavorites"),
-            action: "addToFavorites",
-            icon: I.newFolder,
+            label: t("contextMenu.windowsMenu"),
+            action: "windowsMenu",
+            icon: I.windows,
+            children: winChildren,
           },
         );
       }
     }
+
+    // ── Compress / Extract ──
     if (hasSelection) {
       result.push(
         { label: "", action: "", separator: true },

@@ -245,7 +245,8 @@ function formatDate(ts: number): string {
     cursor: pointer;
     font-size: var(--font-size-base);
     transition: background 0.05s;
-    min-height: 34px;
+    min-height: var(--row-height, 34px);
+    height: auto;
     border-radius: 4px;
     margin: 0 4px;
 }
@@ -360,6 +361,11 @@ function formatDate(ts: number): string {
 }
 
 /* ── Cut visual state ── */
+.file-item.compact {
+    min-height: var(--row-height-compact, 26px);
+    padding: 2px 8px;
+}
+
 .file-item.cut {
     opacity: 0.45;
     pointer-events: none;

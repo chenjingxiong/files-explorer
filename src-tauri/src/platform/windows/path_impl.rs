@@ -6,20 +6,44 @@ use std::path::PathBuf;
 
 pub struct PathImpl;
 
+fn get_portable_dir() -> Option<PathBuf> {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            let data_dir = parent.join("Data");
+            if data_dir.exists() {
+                return Some(data_dir);
+            }
+        }
+    }
+    None
+}
+
 impl PlatformPath for PathImpl {
     fn app_data_dir(&self) -> PathBuf {
+        if let Some(p) = get_portable_dir() {
+            return p;
+        }
         appdata().join("files-explorer")
     }
 
     fn app_cache_dir(&self) -> PathBuf {
+        if let Some(p) = get_portable_dir() {
+            return p.join("cache");
+        }
         localappdata().join("files-explorer").join("cache")
     }
 
     fn app_config_dir(&self) -> PathBuf {
+        if let Some(p) = get_portable_dir() {
+            return p.join("config");
+        }
         appdata().join("files-explorer").join("config")
     }
 
     fn app_log_dir(&self) -> PathBuf {
+        if let Some(p) = get_portable_dir() {
+            return p.join("logs");
+        }
         appdata().join("files-explorer").join("logs")
     }
 

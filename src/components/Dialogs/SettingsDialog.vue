@@ -91,29 +91,75 @@
                             </div>
                         </div>
 
-                        <div class="setting-group">
-                            <div class="group-title">
-                                {{ t("settings.fontSize") }}
+                                                <div class="setting-group">
+                            <div class="font-setting-header">
+                                <div class="group-title">
+                                    {{ t("settings.fontSize") }}
+                                </div>
+                                <span class="font-badge">{{ settings.fontSize }}px</span>
                             </div>
-                            <div class="font-options">
+
+                            <div class="font-slider-container">
+                                <span class="font-slider-label">10px</span>
+                                <input
+                                    type="range"
+                                    min="10"
+                                    max="24"
+                                    step="1"
+                                    :value="settings.fontSize"
+                                    class="font-slider-range"
+                                    @input="handleFontSizeInput"
+                                />
+                                <span class="font-slider-label">24px</span>
+                            </div>
+
+                            <div class="font-presets">
                                 <button
-                                    v-for="opt in fontSizeOptions"
-                                    :key="opt.value"
-                                    class="font-card"
-                                    :class="{
-                                        active: settings.fontSize === opt.value,
-                                    }"
-                                    @click="settings.setFontSize(opt.value)"
+                                    v-for="preset in [11, 12, 13, 14, 16, 18, 20, 22, 24]"
+                                    :key="preset"
+                                    class="font-preset-chip"
+                                    :class="{ active: settings.fontSize === preset }"
+                                    @click="settings.setFontSize(preset)"
                                 >
-                                    <span
-                                        class="font-sample"
-                                        :style="{ fontSize: opt.sampleSize }"
-                                        >Aa</span
-                                    >
-                                    <span class="font-label">{{
-                                        t(opt.labelKey)
-                                    }}</span>
+                                    {{ preset }}px
                                 </button>
+                            </div>
+
+                            <!-- Live preview card -->
+                            <div class="font-preview-box">
+                                <div class="font-preview-top">
+                                    <span class="font-preview-badge">{{ t("settings.fontPreviewTitle") || "布局与字号实时预览" }}</span>
+                                    <span class="font-preview-current">{{ settings.fontSize }}px</span>
+                                </div>
+                                <div class="font-preview-list">
+                                    <div class="preview-row">
+                                        <svg viewBox="0 0 16 16" width="16" height="16" class="preview-icon">
+                                            <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184l.732.816H13.5A1.5 1.5 0 0 1 15 5.5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5v-9z" fill="#F5C542"/>
+                                        </svg>
+                                        <span class="preview-name">Documents</span>
+                                        <span class="preview-type">{{ t("fileList.folder") || "文件夹" }}</span>
+                                        <span class="preview-date">2026-10-29 18:00</span>
+                                        <span class="preview-size">—</span>
+                                    </div>
+                                    <div class="preview-row">
+                                        <svg viewBox="0 0 16 16" width="16" height="16" class="preview-icon">
+                                            <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z" fill="#89B4FA"/>
+                                        </svg>
+                                        <span class="preview-name">Annual_Financial_Report_2026.docx</span>
+                                        <span class="preview-type">Word 文档</span>
+                                        <span class="preview-date">2026-10-28 14:20</span>
+                                        <span class="preview-size">3.8 MB</span>
+                                    </div>
+                                    <div class="preview-row">
+                                        <svg viewBox="0 0 16 16" width="16" height="16" class="preview-icon">
+                                            <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5z" fill="#A6E3A1"/>
+                                        </svg>
+                                        <span class="preview-name">main.rs</span>
+                                        <span class="preview-type">Rust Source</span>
+                                        <span class="preview-date">2026-10-29 17:45</span>
+                                        <span class="preview-size">18.2 KB</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -805,6 +851,11 @@ function openRepo() {
     );
 }
 
+
+function handleFontSizeInput(e: Event) {
+    const val = Number((e.target as HTMLInputElement).value);
+    settings.setFontSize(val);
+}
 const fontSizeOpen = ref(false);
 const fontFamilyOpen = ref(false);
 
@@ -1122,6 +1173,155 @@ function handleLocaleChange(l: string) {
 }
 
 /* ── Font size ── */
+.font-setting-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.font-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--accent);
+    color: var(--bg-primary);
+    font-size: 11px;
+    font-weight: 700;
+}
+.font-slider-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 4px;
+}
+.font-slider-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+.font-slider-range {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+}
+.font-slider-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg-primary);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    cursor: grab;
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+.font-slider-range::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    transform: scale(1.15);
+}
+.font-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+}
+.font-preset-chip {
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.font-preset-chip:hover {
+    border-color: var(--accent);
+    color: var(--text-primary);
+}
+.font-preset-chip.active {
+    background: var(--accent);
+    color: var(--bg-primary);
+    border-color: var(--accent);
+    font-weight: 600;
+}
+.font-preview-box {
+    margin-top: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-primary);
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+}
+.font-preview-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+}
+.font-preview-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+.font-preview-current {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+.font-preview-list {
+    display: flex;
+    flex-direction: column;
+}
+.preview-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    min-height: var(--row-height, 34px);
+    border-bottom: 1px solid var(--border);
+    font-size: var(--font-size-base, 13px);
+    transition: min-height 0.1s ease, font-size 0.1s ease;
+}
+.preview-row:last-child {
+    border-bottom: none;
+}
+.preview-icon {
+    flex-shrink: 0;
+}
+.preview-name {
+    flex: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+}
+.preview-type {
+    flex: 1;
+    font-size: var(--font-size-sm, 11px);
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.preview-date {
+    flex: 1.2;
+    font-size: var(--font-size-sm, 11px);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+.preview-size {
+    width: 60px;
+    text-align: right;
+    font-size: var(--font-size-sm, 11px);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
 .font-options {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;

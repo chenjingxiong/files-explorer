@@ -16,6 +16,7 @@
             @search-submit="(q: string) => search.submitSearch(q)"
         />
         <RibbonToolbar
+            v-show="!settings.ribbonCollapsed"
             @action="(a: string) => actions.executeAction(a)"
             @toggle-terminal="showTerminal = !showTerminal"
         />
@@ -379,6 +380,45 @@ async function handleContextAction(action: string) {
             } catch (e: any) {
                 toast.show(t("toast.error") + ": " + e, true);
             }
+        }
+        return;
+    }
+    if (action.startsWith("win_verb:")) {
+        const verbId = action.replace("win_verb:", "");
+        const path = sel.selectedFiles.size > 0 ? [...sel.selectedFiles][0] : store.currentPath;
+        if (path) {
+            try {
+                await tauri.executeWindowsContextItem(verbId, path);
+            } catch (e: any) {
+                toast.show(t("toast.error") + ": " + (e?.message || e), true);
+            }
+        }
+        return;
+    }
+    if (action.startsWith("sort:")) {
+        const field = action.replace("sort:", "") as any;
+        view.setSort(field, view.sortAsc);
+        return;
+    }
+    if (action.startsWith("sort_dir:")) {
+        const dir = action.replace("sort_dir:", "");
+        view.setSort(view.sortField, dir === "asc");
+        return;
+    }
+    if (action === "addToQuickAccess") {
+        const path = sel.selectedFiles.size > 0 ? [...sel.selectedFiles][0] : store.currentPath;
+        if (path) {
+            const name = path.split(/[\/\\]/).filter(Boolean).pop() || path;
+            settings.addBookmark(path, name);
+            toast.show(t("contextMenu.addedToQuickAccess"));
+        }
+        return;
+    }
+    if (action === "removeFromQuickAccess") {
+        const path = sel.selectedFiles.size > 0 ? [...sel.selectedFiles][0] : store.currentPath;
+        if (path) {
+            settings.removeBookmark(path);
+            toast.show(t("contextMenu.removedFromQuickAccess"));
         }
         return;
     }
