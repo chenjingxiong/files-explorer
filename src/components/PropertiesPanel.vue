@@ -426,6 +426,17 @@
                             top: panelCtx.y + 'px',
                         }"
                     >
+                        <template v-if="panelSelectedText">
+                            <button class="panel-ctx-item" @click="ctxAction('copySelection')">
+                                <span v-html="panelIcons.copy"></span>
+                                {{ $t("contextMenu.copy") }}
+                            </button>
+                            <button class="panel-ctx-item" @click="ctxAction('selectAll')">
+                                <span v-html="panelIcons.selectAll"></span>
+                                {{ $t("contextMenu.selectAll") }}
+                            </button>
+                            <div class="panel-ctx-sep"></div>
+                        </template>
                         <button
                             class="panel-ctx-item"
                             @click="ctxAction('open')"
@@ -472,6 +483,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, reactive } from "vue";
 import { useI18n } from "vue-i18n";
+import { useToast } from "@/composables/useToast";
 import { useFileStore } from "@/stores/fileStore";
 
 // Translate common Rust backend error messages to localized strings
@@ -546,6 +558,7 @@ const store = useFileStore();
 const sel = useSelectionStore();
 const view = useViewStore();
 const tabStore = useTabStore();
+const toast = useToast();
 
 defineProps<{ visible: boolean; width: number }>();
 const emit = defineEmits<{ close: []; resizeStart: [e: MouseEvent] }>();
@@ -570,26 +583,49 @@ const fileIconSvg = computed(() => {
 
 // ── Panel context menu ──
 const panelCtx = reactive({ show: false, x: 0, y: 0 });
+const panelSelectedText = ref("");
 const panelIcons = {
     open: `<svg viewBox="0 0 14 14" width="12" height="12"><path d="M2 4.5a1 1 0 011-1h2.5l1.2 1.5H11a1 1 0 011 1V11a1 1 0 01-1 1H3a1 1 0 01-1-1V4.5z" fill="none" stroke="currentColor" stroke-width="1"/></svg>`,
     showInExplorer: `<svg viewBox="0 0 14 14" width="12" height="12"><path d="M8 2h4v4M6 8l6-6M4 3H3a1 1 0 00-1 1v7a1 1 0 001 1h7a1 1 0 001-1v-1" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     terminal: `<svg viewBox="0 0 14 14" width="12" height="12"><rect x="1.5" y="2.5" width="11" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><path d="M4 5l2 2-2 2M7 9h3" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    selectAll: `<svg viewBox="0 0 14 14" width="12" height="12"><rect x="2" y="2" width="10" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 1.5"/><path d="M4.5 7l2 2 3.5-4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     copy: `<svg viewBox="0 0 14 14" width="12" height="12"><rect x="3.5" y="1.5" width="7" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1"/><rect x="1.5" y="3.5" width="7" height="9" rx="1" fill="var(--bg-secondary)" stroke="currentColor" stroke-width="1"/></svg>`,
     popout: `<svg viewBox="0 0 14 14" width="12" height="12"><path d="M8 2h4v4M6 8l6-6M4 3H3a1 1 0 00-1 1v7a1 1 0 001 1h7a1 1 0 001-1v-1" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 };
 
 function onPanelCtxMenu(e: MouseEvent) {
     e.stopPropagation();
-    if (!file.value) return;
+    panelSelectedText.value = window.getSelection()?.toString() || "";
+    if (!file.value && !panelSelectedText.value) return;
     panelCtx.x = e.clientX;
     panelCtx.y = e.clientY;
     panelCtx.show = true;
 }
 
 async function ctxAction(action: string) {
+    panelCtx.show = false;
+    if (action === "copySelection") {
+        if (panelSelectedText.value) {
+            await navigator.clipboard.writeText(panelSelectedText.value).catch(() => {});
+            toast.show(t("toast.copied"));
+        }
+        return;
+    }
+    if (action === "selectAll") {
+        const el = document.querySelector(".preview-area") || document.querySelector(".preview-info");
+        if (el) {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const s = window.getSelection();
+            if (s) {
+                s.removeAllRanges();
+                s.addRange(range);
+            }
+        }
+        return;
+    }
     const p = file.value?.path;
     if (!p) return;
-    panelCtx.show = false;
     switch (action) {
         case "open":
             await openFile(p).catch(() => {});
@@ -1442,5 +1478,20 @@ async function openPreviewWindow() {
     height: 120px;
     background: var(--bg-hover);
     border-radius: 6px;
+}
+.preview-info,
+.preview-info-name,
+.props-table,
+.props-td-label,
+.props-td-value,
+.props-td-path,
+.preview-archive-item,
+.preview-archive-name,
+.preview-archive-size,
+.preview-meta,
+.preview-multi-text,
+.preview-status {
+    user-select: text;
+    -webkit-user-select: text;
 }
 </style>

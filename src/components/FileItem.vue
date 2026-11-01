@@ -1,6 +1,7 @@
 <template>
     <div
         class="file-item"
+        :title="file.name"
         :class="{ selected, cut: isCut, focused }"
         @contextmenu.prevent="$emit('contextmenu', $event)"
         @click="$emit('click', $event)"
@@ -72,7 +73,7 @@
                     />
                 </svg>
             </div>
-            <span class="file-name">
+            <span class="file-name" :title="file.name">
                 {{ file.name }}
                 <span v-if="isCut" class="cut-badge">✂</span>
             </span>

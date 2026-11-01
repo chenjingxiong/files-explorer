@@ -401,6 +401,8 @@ export default {
     showTrayDesc: "在菜单栏/任务栏显示托盘图标",
     quitOnClose: "关闭界面时退出",
     quitOnCloseDesc: "关闭窗口时退出应用程序（取消勾选则隐藏到托盘）",
+    replaceWinE: "启动快捷键 (Win+E)",
+    replaceWinEDesc: "替换系统全局快捷键 Win+E，按下时直接启动 Files Explorer 替代系统资源管理器",
     checkUpdate: "检查更新",
     checkingUpdate: "检查中...",
     upToDate: "已是最新版本",

@@ -9,16 +9,17 @@
                 <span>{{ t("fileList.loading") }}</span>
             </div>
             <div
-                v-for="(file, idx) in column.files"
+                v-for="(file, idx) in sortedFiles"
                 :key="file.path || file.name"
                 class="column-item"
+                :title="file.name"
                 :class="{ selected: isSelected(file.path) }"
                 @click="onClick(idx, $event)"
                 @dblclick="onDblClick(idx)"
                 @contextmenu.prevent="onContextMenu(idx, $event)"
             >
                 <div class="column-icon" v-html="getIcon(file)"></div>
-                <span class="column-name">{{ file.name }}</span>
+                <span class="column-name" :title="file.name">{{ file.name }}</span>
                 <span v-if="file.is_dir" class="column-arrow">›</span>
             </div>
         </div>
@@ -26,7 +27,9 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { useViewStore } from "@/stores/viewStore";
 import type { FileEntry } from "@/types";
 import type { ColumnState } from "@/stores/viewStore";
 import { useSelectionStore } from "@/stores/selectionStore";
@@ -36,6 +39,8 @@ const MIN_COL_WIDTH = 120;
 
 const { t } = useI18n();
 const sel = useSelectionStore();
+const view = useViewStore();
+const sortedFiles = computed(() => view.sortFiles(props.column.files));
 const props = defineProps<{
     column: ColumnState;
     colIdx: number;
@@ -59,13 +64,12 @@ function getIcon(file: FileEntry): string | null {
 }
 
 function onClick(idx: number, e: MouseEvent) {
-    const file = props.column.files[idx];
+    const file = sortedFiles.value[idx];
     if (!file) return;
     const shift = e.shiftKey;
     const ctrl = e.ctrlKey || e.metaKey;
-    // 直接在 ColumnPane 中处理多选，避免修改 emit 签名
     if (shift && sel.selectedFiles.size > 0) {
-        sel.selectRange(props.column.files, sel.anchorIndex, idx);
+        sel.selectRange(sortedFiles.value, sel.anchorIndex, idx);
         sel.focusedIndex = idx;
     } else if (ctrl) {
         sel.toggleSelectFile(file);
@@ -75,19 +79,25 @@ function onClick(idx: number, e: MouseEvent) {
         sel.focusedIndex = idx;
         sel.anchorIndex = idx;
     }
-    emit("select", props.colIdx, idx);
+    const realIdx = props.column.files.findIndex(f => f.path === file.path);
+    emit("select", props.colIdx, realIdx >= 0 ? realIdx : idx);
 }
 function onDblClick(idx: number) {
-    emit("dblclick", props.colIdx, idx);
+    const file = sortedFiles.value[idx];
+    if (!file) return;
+    const realIdx = props.column.files.findIndex(f => f.path === file.path);
+    emit("dblclick", props.colIdx, realIdx >= 0 ? realIdx : idx);
 }
 function onContextMenu(idx: number, event: MouseEvent) {
-    const file = props.column.files[idx];
+    const file = sortedFiles.value[idx];
     if (file) emit("contextmenu", file, event, props.colIdx);
 }
 function selectFirstIfNone(e: MouseEvent) {
     if (e.target !== e.currentTarget) return;
-    if (props.column.selectedIndex === -1 && props.column.files.length > 0) {
-        emit("select", props.colIdx, 0);
+    if (props.column.selectedIndex === -1 && sortedFiles.value.length > 0) {
+        const first = sortedFiles.value[0];
+        const realIdx = props.column.files.findIndex(f => f.path === first.path);
+        emit("select", props.colIdx, realIdx >= 0 ? realIdx : 0);
     }
 }
 </script>

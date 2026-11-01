@@ -68,6 +68,7 @@ export interface AppSettings {
   termFontFamily: TermFontFamily;
   termFontCustom: string;
   ribbonCollapsed?: boolean;
+  replaceWinE?: boolean;
 }
 
 function loadBookmarks(): Bookmark[] {
@@ -89,13 +90,13 @@ function saveBookmarks(bookmarks: Bookmark[]) {
 
 export function parseFontSize(val: any): number {
   if (typeof val === "number" && !isNaN(val)) {
-    return Math.min(Math.max(Math.round(val), 10), 24);
+    return Math.min(Math.max(Math.round(val), 10), 50);
   }
   if (val === "small") return 11;
   if (val === "large") return 16;
   if (val === "medium") return 13;
   const num = parseInt(val, 10);
-  if (!isNaN(num)) return Math.min(Math.max(num, 10), 24);
+  if (!isNaN(num)) return Math.min(Math.max(num, 10), 50);
   return 13;
 }
 
@@ -126,6 +127,7 @@ function loadSettings(): AppSettings {
         termFontFamily: parsed.termFontFamily || "jetbrains-mono",
         termFontCustom: parsed.termFontCustom || "",
         ribbonCollapsed: loadRibbonCollapsed(),
+        replaceWinE: parsed.replaceWinE ?? false,
       };
     }
   } catch {}
@@ -143,6 +145,7 @@ function loadSettings(): AppSettings {
     termFontFamily: "jetbrains-mono",
     termFontCustom: "",
     ribbonCollapsed: loadRibbonCollapsed(),
+    replaceWinE: false,
   };
 }
 
@@ -177,6 +180,7 @@ export const useSettingsStore = defineStore("settings", () => {
   const showTray = ref<boolean>(initial.showTray ?? true);
   const quitOnClose = ref<boolean>(initial.quitOnClose ?? false);
   const ribbonCollapsed = ref<boolean>(initial.ribbonCollapsed ?? false);
+  const replaceWinE = ref<boolean>(initial.replaceWinE ?? false);
   const termEmulation = ref<TermEmulation>(
     initial.termEmulation || "xterm-256color",
   );
@@ -214,6 +218,16 @@ export const useSettingsStore = defineStore("settings", () => {
     persist();
   }
 
+  async function setReplaceWinE(v: boolean) {
+    replaceWinE.value = v;
+    persist();
+    try {
+      const { setWinEReplacement } = await import("@/utils/tauri");
+      await setWinEReplacement(v);
+    } catch (e) {
+      console.warn("Failed to set Win+E replacement:", e);
+    }
+  }
   function setRibbonCollapsed(v: boolean) {
     ribbonCollapsed.value = v;
     localStorage.setItem("app-ribbon-collapsed", String(v));
@@ -328,6 +342,10 @@ export const useSettingsStore = defineStore("settings", () => {
       const { setAutoStart } = await import("@/utils/tauri");
       await setAutoStart(autoStart.value);
     } catch { /* ignore */ }
+    try {
+      const { isWinEReplacementEnabled } = await import("@/utils/tauri");
+      replaceWinE.value = await isWinEReplacementEnabled();
+    } catch { /* ignore */ }
   }
 
   function persist() {
@@ -345,6 +363,7 @@ export const useSettingsStore = defineStore("settings", () => {
       termFontFamily: termFontFamily.value,
       termFontCustom: termFontCustom.value,
       ribbonCollapsed: ribbonCollapsed.value,
+      replaceWinE: replaceWinE.value,
     });
   }
 
@@ -357,6 +376,8 @@ export const useSettingsStore = defineStore("settings", () => {
     showTray,
     quitOnClose,
     ribbonCollapsed,
+    replaceWinE,
+    setReplaceWinE,
     bookmarks,
     addBookmark,
     removeBookmark,

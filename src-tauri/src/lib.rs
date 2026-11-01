@@ -437,6 +437,32 @@ fn execute_windows_context_item(command: String, target_path: String) -> Result<
     }
 }
 
+
+#[command]
+fn is_win_e_replacement_enabled() -> Result<bool, FsError> {
+    #[cfg(target_os = "windows")]
+    {
+        Ok(crate::platform::windows::win_context::is_win_e_replacement_enabled_impl())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(false)
+    }
+}
+
+#[command]
+fn set_win_e_replacement(enabled: bool) -> Result<(), FsError> {
+    #[cfg(target_os = "windows")]
+    {
+        crate::platform::windows::win_context::set_win_e_replacement_impl(enabled)
+            .map_err(|e| FsError::Other(e))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = enabled;
+        Ok(())
+    }
+}
 // ── Entry ──
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

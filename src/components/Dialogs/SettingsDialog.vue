@@ -1,6 +1,6 @@
 <template>
     <div class="dialog-overlay" @click.self="$emit('close')">
-        <div class="settings-dialog">
+        <div class="settings-dialog" :style="{ width: dialogWidth + 'px', height: dialogHeight + 'px' }">
             <div class="settings-header">
                 <h2>
                     <svg
@@ -104,18 +104,18 @@
                                 <input
                                     type="range"
                                     min="10"
-                                    max="24"
+                                    max="50"
                                     step="1"
                                     :value="settings.fontSize"
                                     class="font-slider-range"
                                     @input="handleFontSizeInput"
                                 />
-                                <span class="font-slider-label">24px</span>
+                                <span class="font-slider-label">50px</span>
                             </div>
 
                             <div class="font-presets">
                                 <button
-                                    v-for="preset in [11, 12, 13, 14, 16, 18, 20, 22, 24]"
+                                    v-for="preset in [11, 12, 13, 14, 16, 18, 22, 28, 36, 44, 50]"
                                     :key="preset"
                                     class="font-preset-chip"
                                     :class="{ active: settings.fontSize === preset }"
@@ -759,16 +759,35 @@
                                     <div class="switch-thumb" />
                                 </div>
                             </label>
+                            <label
+                                class="switch-row"
+                                @click="settings.setReplaceWinE(!settings.replaceWinE)"
+                            >
+                                <div class="switch-text">
+                                    <span>{{ t("settings.replaceWinE") }}</span>
+                                    <span class="switch-desc">{{
+                                        t("settings.replaceWinEDesc")
+                                    }}</span>
+                                </div>
+                                <div
+                                    class="switch-track"
+                                    :class="{ active: settings.replaceWinE }"
+                                >
+                                    <div class="switch-thumb" />
+                                </div>
+                            </label>
                         </div>
                     </div>
                 </div>
             </div>
+            <!-- Dialog resize handle -->
+            <div class="dialog-resize-handle" @mousedown.prevent.stop="onDialogResizeStart" />
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, reactive, computed, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { APP_VERSION } from "@/utils/version";
@@ -785,6 +804,65 @@ import type {
 const { t, locale } = useI18n();
 const settings = useSettingsStore();
 const toast = useToast();
+// ── Dialog resize handling ──
+function loadDialogSize(): { width: number; height: number } {
+    try {
+        const raw = localStorage.getItem("settings-dialog-size");
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed.width && parsed.height) {
+                return {
+                    width: Math.min(Math.max(parsed.width, 500), window.innerWidth - 30),
+                    height: Math.min(Math.max(parsed.height, 450), window.innerHeight - 30),
+                };
+            }
+        }
+    } catch {}
+    return { width: 680, height: 750 };
+}
+const dialogSize = reactive(loadDialogSize());
+const dialogWidth = computed(() => dialogSize.width);
+const dialogHeight = computed(() => dialogSize.height);
+
+let _resizingDialog = false;
+let _startX = 0;
+let _startY = 0;
+let _startW = 0;
+let _startH = 0;
+
+function onDialogResizeStart(e: MouseEvent) {
+    _resizingDialog = true;
+    _startX = e.clientX;
+    _startY = e.clientY;
+    _startW = dialogSize.width;
+    _startH = dialogSize.height;
+    addEventListener("mousemove", onDialogResizeMove);
+    addEventListener("mouseup", onDialogResizeEnd);
+    document.body.style.cursor = "nwse-resize";
+    document.body.style.userSelect = "none";
+}
+
+function onDialogResizeMove(e: MouseEvent) {
+    if (!_resizingDialog) return;
+    const maxW = window.innerWidth - 30;
+    const maxH = window.innerHeight - 30;
+    dialogSize.width = Math.min(maxW, Math.max(500, _startW + (e.clientX - _startX)));
+    dialogSize.height = Math.min(maxH, Math.max(450, _startH + (e.clientY - _startY)));
+}
+
+function onDialogResizeEnd() {
+    if (!_resizingDialog) return;
+    _resizingDialog = false;
+    removeEventListener("mousemove", onDialogResizeMove);
+    removeEventListener("mouseup", onDialogResizeEnd);
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    localStorage.setItem("settings-dialog-size", JSON.stringify({ width: dialogSize.width, height: dialogSize.height }));
+}
+onUnmounted(() => {
+    removeEventListener("mousemove", onDialogResizeMove);
+    removeEventListener("mouseup", onDialogResizeEnd);
+});
 const activeTab = ref("general");
 const termDropdownOpen = ref(false);
 
@@ -988,17 +1066,43 @@ function handleLocaleChange(l: string) {
 
 <style scoped>
 .settings-dialog {
+    position: relative;
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: 14px;
-    width: 600px;
-    height: 840px;
-    max-height: 80vh;
+    min-width: 500px;
+    min-height: 450px;
+    max-width: 96vw;
+    max-height: 94vh;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     box-shadow: 0 24px 64px var(--shadow);
     animation: dialog-in 0.2s ease-out;
+}
+.dialog-resize-handle {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 18px;
+    height: 18px;
+    cursor: nwse-resize;
+    z-index: 10;
+}
+.dialog-resize-handle::after {
+    content: "";
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    width: 7px;
+    height: 7px;
+    border-right: 2px solid var(--text-muted);
+    border-bottom: 2px solid var(--text-muted);
+    opacity: 0.6;
+}
+.dialog-resize-handle:hover::after {
+    opacity: 1;
+    border-color: var(--accent);
 }
 
 @keyframes dialog-in {

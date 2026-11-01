@@ -405,6 +405,8 @@ export default {
     quitOnClose: "Quit on close",
     quitOnCloseDesc:
       "Exit application when closing window (uncheck to hide to tray)",
+    replaceWinE: "Launch Shortcut (Win+E)",
+    replaceWinEDesc: "Override system global shortcut Win+E to launch Files Explorer",
     checkUpdate: "Check for Updates",
     checkingUpdate: "Checking...",
     upToDate: "Up to Date",

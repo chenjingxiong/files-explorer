@@ -602,6 +602,34 @@ onMounted(async () => {
             }
         }
     };
+    // ── Mouse Back & Forward buttons (button 3 & 4) ──
+    const onGlobalMouseUp = (e: MouseEvent) => {
+        if (e.button === 3) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (navStore.canGoBack) {
+                nav.toolbarBack();
+            }
+        } else if (e.button === 4) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (navStore.canGoForward) {
+                nav.toolbarForward();
+            }
+        }
+    };
+    const onGlobalMouseDown = (e: MouseEvent) => {
+        if (e.button === 3 || e.button === 4) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    };
+    window.addEventListener("mouseup", onGlobalMouseUp);
+    window.addEventListener("mousedown", onGlobalMouseDown);
+    onUnmounted(() => {
+        window.removeEventListener("mouseup", onGlobalMouseUp);
+        window.removeEventListener("mousedown", onGlobalMouseDown);
+    });
     window.addEventListener("keydown", onTerminalKey);
     onUnmounted(() => window.removeEventListener("keydown", onTerminalKey));
 

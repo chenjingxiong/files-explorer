@@ -4,6 +4,7 @@
             v-for="(file, idx) in files"
             :key="file.path"
             class="grid-card"
+            :title="file.name"
             :class="{
                 selected: isSelected(file.path),
                 focused: idx === focusedIndex,
@@ -111,7 +112,7 @@
                     />
                 </svg>
             </div>
-            <div class="grid-name">{{ file.name }}</div>
+            <div class="grid-name" :title="file.name">{{ file.name }}</div>
         </div>
     </div>
 </template>

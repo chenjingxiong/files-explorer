@@ -199,7 +199,7 @@
             <div class="pw-split-handle" @mousedown.stop="onSplitStart" />
 
             <!-- Right: preview -->
-            <div class="pw-preview" @contextmenu.prevent>
+            <div class="pw-preview" @contextmenu="onPreviewContextMenu">
                 <button
                     v-if="viewingExtracted"
                     class="pw-preview-back"
@@ -527,6 +527,15 @@
                 class="pw-ctx-menu"
                 :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
             >
+                <template v-if="previewSelectedText">
+                    <button class="pw-ctx-item" @click="ctxCopySelection">
+                        📋 {{ $t("contextMenu.copy") }}
+                    </button>
+                    <button class="pw-ctx-item" @click="ctxSelectAll">
+                        ☑ {{ $t("contextMenu.selectAll") }}
+                    </button>
+                    <div class="pw-ctx-sep"></div>
+                </template>
                 <button class="pw-ctx-item" @click="ctxOpenFile">
                     ↗ {{ $t("contextMenu.open") }}
                 </button>
@@ -1107,6 +1116,37 @@ function fileColorClass(node: TreeNode): string {
 
 // ── Context menu ──
 const ctxMenu = reactive({ show: false, x: 0, y: 0, path: "" });
+const previewSelectedText = ref("");
+
+function onPreviewContextMenu(e: MouseEvent) {
+    e.stopPropagation();
+    previewSelectedText.value = window.getSelection()?.toString() || "";
+    ctxMenu.x = e.clientX;
+    ctxMenu.y = e.clientY;
+    ctxMenu.show = true;
+    e.preventDefault();
+}
+
+async function ctxCopySelection() {
+    if (previewSelectedText.value) {
+        await navigator.clipboard.writeText(previewSelectedText.value).catch(() => {});
+    }
+    ctxMenu.show = false;
+}
+
+function ctxSelectAll() {
+    const el = document.querySelector(".pw-preview");
+    if (el) {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const s = window.getSelection();
+        if (s) {
+            s.removeAllRanges();
+            s.addRange(range);
+        }
+    }
+    ctxMenu.show = false;
+}
 
 function onTreeCtxMenu(e: MouseEvent) {
     ctxMenu.show = false;
@@ -1367,6 +1407,12 @@ onMounted(async () => {
         if (renaming.value) return;
         if (e.key === "Escape") {
             getCurrentWebviewWindow().close();
+        } else if ((e.ctrlKey || e.metaKey) && e.key === "c") {
+            const text = window.getSelection()?.toString();
+            if (text) {
+                navigator.clipboard.writeText(text).catch(() => {});
+                return;
+            }
         } else if ((e.ctrlKey || e.metaKey) && e.key === "s") {
             e.preventDefault();
             tbSaveAs();
@@ -1976,5 +2022,14 @@ onMounted(async () => {
     height: 1px;
     background: var(--border);
     margin: 4px 6px;
+}
+.pw-preview,
+.pw-meta,
+.pw-archive-item,
+.pw-archive-name,
+.pw-archive-size,
+.pw-tree-label {
+    user-select: text;
+    -webkit-user-select: text;
 }
 </style>

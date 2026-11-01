@@ -15,14 +15,40 @@ pub struct WinContextItem {
 
 static WIN_CONTEXT_CACHE: OnceLock<Vec<WinContextItem>> = OnceLock::new();
 
+fn get_cache_file_path() -> std::path::PathBuf {
+    use crate::platform::PlatformPath;
+    let path_impl = crate::platform::windows::path_impl::PathImpl;
+    let dir = path_impl.app_data_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    dir.join("win_context_cache.json")
+}
 /// Pre-cache Windows context menu items in a background thread at startup.
+/// Next instance or startup will reuse the previously saved cache file on disk without rescanning.
 pub fn init_cache_background() {
     #[cfg(target_os = "windows")]
     std::thread::spawn(|| {
+        let cache_file = get_cache_file_path();
+        if cache_file.exists() {
+            if let Ok(content) = std::fs::read_to_string(&cache_file) {
+                if let Ok(items) = serde_json::from_str::<Vec<WinContextItem>>(&content) {
+                    if !items.is_empty() {
+                        let count = items.len();
+                        let _ = WIN_CONTEXT_CACHE.set(items);
+                        tracing::info!("Windows context menu loaded from existing cache file with {} items (skipped registry scan)", count);
+                        return;
+                    }
+                }
+            }
+        }
+
+        tracing::info!("First-time reading Windows context menu from registry...");
         let items = read_all_win_context_items();
         let count = items.len();
+        if let Ok(json) = serde_json::to_string(&items) {
+            let _ = std::fs::write(&cache_file, json);
+        }
         let _ = WIN_CONTEXT_CACHE.set(items);
-        tracing::info!("Windows context menu cache initialized with {} items", count);
+        tracing::info!("Windows context menu cache saved to disk with {} items", count);
     });
 }
 
@@ -159,7 +185,21 @@ pub fn get_context_menu_impl() -> Result<Vec<WinContextItem>, String> {
         if let Some(items) = WIN_CONTEXT_CACHE.get() {
             return Ok(items.clone());
         }
+        let cache_file = get_cache_file_path();
+        if cache_file.exists() {
+            if let Ok(content) = std::fs::read_to_string(&cache_file) {
+                if let Ok(items) = serde_json::from_str::<Vec<WinContextItem>>(&content) {
+                    if !items.is_empty() {
+                        let _ = WIN_CONTEXT_CACHE.set(items.clone());
+                        return Ok(items);
+                    }
+                }
+            }
+        }
         let items = read_all_win_context_items();
+        if let Ok(json) = serde_json::to_string(&items) {
+            let _ = std::fs::write(&cache_file, json);
+        }
         let _ = WIN_CONTEXT_CACHE.set(items.clone());
         Ok(items)
     }
@@ -202,5 +242,55 @@ pub fn execute_context_item_impl(command: String, target_path: String) -> Result
     {
         let _ = (command, target_path);
         Err("Windows context menu is only supported on Windows".into())
+    }
+}
+
+const WIN_E_CLSID_SUBKEY: &str = r"Software\Classes\CLSID\{52205fd8-5dfb-447d-801a-d0b52f2e83e1}";
+const WIN_E_CMD_SUBKEY: &str = r"Software\Classes\CLSID\{52205fd8-5dfb-447d-801a-d0b52f2e83e1}\shell\opennewwindow\command";
+
+pub fn is_win_e_replacement_enabled_impl() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::*;
+        use winreg::RegKey;
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        if let Ok(cmd_key) = hkcu.open_subkey(WIN_E_CMD_SUBKEY) {
+            let val: Result<String, _> = cmd_key.get_value("");
+            if let Ok(cmd) = val {
+                return !cmd.trim().is_empty();
+            }
+        }
+    }
+    false
+}
+
+pub fn set_win_e_replacement_impl(enabled: bool) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::*;
+        use winreg::RegKey;
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+
+        if enabled {
+            let exe = std::env::current_exe().map_err(|e| format!("Failed to get exe path: {}", e))?;
+            let (cmd_key, _) = hkcu.create_subkey(WIN_E_CMD_SUBKEY)
+                .map_err(|e| format!("Failed to create registry key: {}", e))?;
+            let cmd_str = format!("\"{}\"", exe.display());
+            cmd_key.set_value("", &cmd_str)
+                .map_err(|e| format!("Failed to set command value: {}", e))?;
+            cmd_key.set_value("DelegateExecute", &"")
+                .map_err(|e| format!("Failed to set DelegateExecute: {}", e))?;
+            tracing::info!("Win+E shortcut replacement enabled pointing to: {}", cmd_str);
+            Ok(())
+        } else {
+            let _ = hkcu.delete_subkey_all(WIN_E_CLSID_SUBKEY);
+            tracing::info!("Win+E shortcut replacement disabled");
+            Ok(())
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = enabled;
+        Err("Win+E replacement is only supported on Windows".into())
     }
 }

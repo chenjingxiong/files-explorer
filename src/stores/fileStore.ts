@@ -6,7 +6,7 @@ import { normalizePath } from "@/utils/platform";
 import { useTabStore } from "@/stores/tabStore";
 import { useNavigationStore } from "@/stores/navigationStore";
 import { useSelectionStore } from "@/stores/selectionStore";
-import { useViewStore } from "@/stores/viewStore";
+import { useViewStore, sortFiles } from "@/stores/viewStore";
 import { useDeleteStore } from "@/stores/deleteStore";
 
 // Navigation token per tab to cancel stale async operations
@@ -19,11 +19,12 @@ function nextNavSeq(tabId: string): number {
 
 // Shared directory-first case-insensitive sort
 export function sortDirFirst(files: FileEntry[]): FileEntry[] {
-  return [...files].sort((a, b) => {
-    if (a.is_dir && !b.is_dir) return -1;
-    if (!a.is_dir && b.is_dir) return 1;
-    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-  });
+  try {
+    const view = useViewStore();
+    return view.sortFiles(files);
+  } catch {
+    return sortFiles(files);
+  }
 }
 
 export const useFileStore = defineStore("file", () => {

@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
+import { ref } from "vue";
 import type { FileEntry } from "@/types";
 import * as tauri from "@/utils/tauri";
 
@@ -32,6 +32,47 @@ function loadSortAsc(): boolean {
   }
 }
 
+/**
+ * Universal file sorter honoring folder-first and sort field + order
+ */
+export function sortFiles(
+  files: FileEntry[],
+  field: SortField = "name",
+  asc: boolean = true,
+): FileEntry[] {
+  return [...files].sort((a, b) => {
+    // Directories always first
+    if (a.is_dir && !b.is_dir) return -1;
+    if (!a.is_dir && b.is_dir) return 1;
+
+    let cmp = 0;
+    switch (field) {
+      case "name":
+        cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
+        break;
+      case "modified":
+        cmp = (a.modified || 0) - (b.modified || 0);
+        break;
+      case "created":
+        cmp = (a.created || 0) - (b.created || 0);
+        break;
+      case "size":
+        cmp = (a.size || 0) - (b.size || 0);
+        break;
+      case "type": {
+        const extA = (a.extension || a.name.split(".").pop() || "").toLowerCase();
+        const extB = (b.extension || b.name.split(".").pop() || "").toLowerCase();
+        cmp = extA.localeCompare(extB, undefined, { sensitivity: "base", numeric: true });
+        break;
+      }
+    }
+    if (cmp === 0 && field !== "name") {
+      cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
+    }
+    return asc ? cmp : -cmp;
+  });
+}
+
 export const useViewStore = defineStore("view", () => {
   const viewMode = ref<"details" | "list" | "grid" | "tree" | "column">(
     "details",
@@ -40,6 +81,10 @@ export const useViewStore = defineStore("view", () => {
   // ── Sorting preference state ──
   const sortField = ref<SortField>(loadSortField());
   const sortAsc = ref<boolean>(loadSortAsc());
+
+  function sortFileList(files: FileEntry[]): FileEntry[] {
+    return sortFiles(files, sortField.value, sortAsc.value);
+  }
 
   function setSort(field: SortField, asc?: boolean) {
     if (asc !== undefined) {
@@ -71,11 +116,7 @@ export const useViewStore = defineStore("view", () => {
     }
     try {
       const children = await tauri.listDirectory(dirPath);
-      const sorted = [...children].sort((a, b) => {
-        if (a.is_dir && !b.is_dir) return -1;
-        if (!a.is_dir && b.is_dir) return 1;
-        return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-      });
+      const sorted = sortFiles(children, sortField.value, sortAsc.value);
       const cache = new Map(treeChildrenCache.value);
       cache.set(dirPath, sorted);
       expanded.add(dirPath);
@@ -129,15 +170,11 @@ export const useViewStore = defineStore("view", () => {
         result.push({ file: item, depth, expanded, hasChildren });
         if (expanded) {
           const children = treeChildrenCache.value.get(item.path);
-          if (children) walk(children, depth + 1);
+          if (children) walk(sortFiles(children, sortField.value, sortAsc.value), depth + 1);
         }
       }
     }
-    const sorted = [...files].sort((a, b) => {
-      if (a.is_dir && !b.is_dir) return -1;
-      if (!a.is_dir && b.is_dir) return 1;
-      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-    });
+    const sorted = sortFiles(files, sortField.value, sortAsc.value);
     walk(sorted, 0);
     return result;
   }
@@ -166,11 +203,7 @@ export const useViewStore = defineStore("view", () => {
     stack.push(newCol);
     try {
       const children = await tauri.listDirectory(file.path);
-      const sorted = [...children].sort((a, b) => {
-        if (a.is_dir && !b.is_dir) return -1;
-        if (!a.is_dir && b.is_dir) return 1;
-        return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-      });
+      const sorted = sortFiles(children, sortField.value, sortAsc.value);
       const updated = stack[colIdx + 1];
       if (updated) {
         updated.files = sorted;
@@ -211,6 +244,7 @@ export const useViewStore = defineStore("view", () => {
     sortField,
     sortAsc,
     setSort,
+    sortFiles: sortFileList,
     treeExpanded,
     treeChildrenCache,
     toggleTreeExpand,

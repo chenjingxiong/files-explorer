@@ -33,12 +33,6 @@ pub fn build_app() -> tauri::App {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.show();
-                let _ = w.set_focus();
-            }
-        }))
         .manage(AppState {
             inner: Mutex::new(AppStateInner {
                 clipboard: Vec::new(),
@@ -105,6 +99,8 @@ pub fn build_app() -> tauri::App {
             crate::get_default_shell,
             crate::get_windows_context_menu,
             crate::execute_windows_context_item,
+            crate::is_win_e_replacement_enabled,
+            crate::set_win_e_replacement,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

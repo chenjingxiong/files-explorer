@@ -111,8 +111,10 @@ export function useKeyboardShortcuts(handlers: {
       e.preventDefault();
       handlers.openNewDialog("folder");
     } else if (ctrl && e.key === "c") {
-      // If user has selected text (e.g. in Markdown preview), let browser handle copy
-      if (window.getSelection()?.toString().trim()) {
+      const selectedText = window.getSelection()?.toString();
+      if (selectedText) {
+        navigator.clipboard.writeText(selectedText).catch(() => {});
+        handlers.showToast(t("toast.copied"));
         return;
       }
       e.preventDefault();

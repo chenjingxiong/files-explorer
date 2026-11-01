@@ -156,7 +156,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { useFileStore } from "@/stores/fileStore";
 import { useSelectionStore } from "@/stores/selectionStore";
@@ -232,39 +232,20 @@ function onColumnStackUpdate(newStack: ColumnState[]) {
 const listEl = ref<HTMLElement | null>(null);
 
 const displayFiles = computed(() => {
-    const source = currentFiles.value;
-    const sorted = [...source].sort((a, b) => {
-        let cmp = 0;
-        if (a.is_dir && !b.is_dir) return -1;
-        if (!a.is_dir && b.is_dir) return 1;
-        switch (view.sortField) {
-            case "name":
-                cmp = a.name.localeCompare(b.name, undefined, {
-                    sensitivity: "base",
-                });
-                break;
-            case "modified":
-                cmp = (b.modified || 0) - (a.modified || 0);
-                break;
-            case "created":
-                cmp = (b.created || 0) - (a.created || 0);
-                break;
-            case "size":
-                cmp = (b.size || 0) - (a.size || 0);
-                break;
-            case "type": {
-                const extA = (a.extension || a.name.split(".").pop() || "").toLowerCase();
-                const extB = (b.extension || b.name.split(".").pop() || "").toLowerCase();
-                cmp = extA.localeCompare(extB, undefined, { sensitivity: "base" });
-                if (cmp === 0) {
-                    cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-                }
-                break;
+    return view.sortFiles(currentFiles.value);
+});
+
+// Auto re-sort column stack when sort preference changes
+watch([() => view.sortField, () => view.sortAsc], () => {
+    if (tabColumnStack.value && tabColumnStack.value.length > 0) {
+        for (const col of tabColumnStack.value) {
+            const selectedPath = col.selectedIndex >= 0 ? col.files[col.selectedIndex]?.path : null;
+            col.files = view.sortFiles(col.files);
+            if (selectedPath) {
+                col.selectedIndex = col.files.findIndex(f => f.path === selectedPath);
             }
         }
-        return view.sortAsc ? cmp : -cmp;
-    });
-    return sorted;
+    }
 });
 
 // ── Column resize ──
@@ -337,17 +318,12 @@ const treeVisible = computed<TreeViewItem[]>(() => {
             if (expanded) {
                 const children = view.getTreeChildren(item.path);
                 if (children) {
-                    walk(children, depth + 1);
+                    walk(view.sortFiles(children), depth + 1);
                 }
             }
         }
     }
-    const source = currentFiles.value;
-    const sorted = [...source].sort((a, b) => {
-        if (a.is_dir && !b.is_dir) return -1;
-        if (!a.is_dir && b.is_dir) return 1;
-        return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-    });
+    const sorted = view.sortFiles(currentFiles.value);
     walk(sorted, 0);
     return result;
 });

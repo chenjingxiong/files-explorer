@@ -297,3 +297,10 @@ export async function executeWindowsContextItem(
 ): Promise<void> {
   return invoke('execute_windows_context_item', { command, targetPath: normalizePath(targetPath) });
 }
+export async function isWinEReplacementEnabled(): Promise<boolean> {
+  return invoke("is_win_e_replacement_enabled");
+}
+
+export async function setWinEReplacement(enabled: boolean): Promise<void> {
+  return invoke("set_win_e_replacement", { enabled });
+}

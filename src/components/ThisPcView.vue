@@ -17,6 +17,7 @@
                 v-for="drive in store.drives"
                 :key="drive.mount_point"
                 class="drive-card"
+                :title="drive.label ? drive.label + ' (' + drive.name + ')' : drive.name"
                 :class="{
                     'drive-card--selected': selectedDrive === drive.mount_point,
                     'drive-card--danger': usePercent(drive) > 90,
@@ -145,7 +146,7 @@
                     <text x="12" y="16" text-anchor="middle" font-size="6" fill="#1e1e2e" font-weight="bold">{{ item.ext.split('.').pop()?.slice(0, 3).toUpperCase() || "?" }}</text>
                 </svg>
                 <div class="recent-row-main">
-                    <span class="recent-row-name">{{ item.name }}</span>
+                    <span class="recent-row-name" :title="item.name">{{ item.name }}</span>
                     <span class="recent-row-meta">
                         <span class="recent-row-path" :title="dirPath(item.path)">{{ dirPath(item.path) }}</span>
                         <span class="recent-row-time">{{ formatTime(item.time) }}</span>

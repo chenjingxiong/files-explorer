@@ -4,6 +4,7 @@
             v-for="item in items"
             :key="item.file.path"
             class="tree-item"
+            :title="item.file.name"
             :class="{
                 selected: isSelected(item.file.path),
                 'tree-dir': item.file.is_dir,
@@ -90,7 +91,7 @@
                 </svg>
             </span>
             <!-- Name -->
-            <span class="tree-name">{{ item.file.name }}</span>
+            <span class="tree-name" :title="item.file.name">{{ item.file.name }}</span>
             <!-- Meta (date + size) on the right for files -->
             <span v-if="!item.file.is_dir" class="tree-size">{{
                 formatFileSize(item.file.size)
