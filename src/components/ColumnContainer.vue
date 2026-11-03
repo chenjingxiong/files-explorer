@@ -32,6 +32,8 @@ import type { ColumnState } from "@/stores/viewStore";
 import { useFileStore } from "@/stores/fileStore";
 import { useViewStore } from "@/stores/viewStore";
 import { useSelectionStore } from "@/stores/selectionStore";
+import { useNavigationStore } from "@/stores/navigationStore";
+import { useTabStore } from "@/stores/tabStore";
 import * as tauri from "@/utils/tauri";
 import ColumnPane from "./ColumnPane.vue";
 
@@ -44,6 +46,8 @@ const emit = defineEmits<{
 const store = useFileStore();
 const view = useViewStore();
 const sel = useSelectionStore();
+const navStore = useNavigationStore();
+const tabStore = useTabStore();
 const scrollRef = ref<HTMLElement>();
 
 // ── Column resize ──
@@ -130,6 +134,22 @@ async function onSelect(colIdx: number, fileIdx: number) {
     if (!file.is_dir) return;
     await view.columnLoadDirectory(props.stack, colIdx, file);
     emit("updateStack", [...props.stack]);
+    store.currentPath = file.path;
+    const tab = tabStore.getFocusedTab();
+    if (tab) {
+        tab.path = file.path;
+        tab.columnStack = props.stack.map((c) => ({
+            ...c,
+            files: [...c.files],
+        }));
+    }
+    navStore.pushHistory({
+        path: file.path,
+        stack: props.stack.map((c) => ({
+            ...c,
+            files: [...c.files],
+        })),
+    });
     await nextTick();
     if (scrollRef.value)
         scrollRef.value.scrollLeft = scrollRef.value.scrollWidth;
@@ -151,6 +171,22 @@ async function onDblClick(colIdx: number, fileIdx: number) {
     if (file.is_dir) {
         await view.columnLoadDirectory(props.stack, colIdx, file);
         emit("updateStack", [...props.stack]);
+        store.currentPath = file.path;
+        const tab = tabStore.getFocusedTab();
+        if (tab) {
+            tab.path = file.path;
+            tab.columnStack = props.stack.map((c) => ({
+                ...c,
+                files: [...c.files],
+            }));
+        }
+        navStore.pushHistory({
+            path: file.path,
+            stack: props.stack.map((c) => ({
+                ...c,
+                files: [...c.files],
+            })),
+        });
     } else {
         try {
             await tauri.openFile(file.path);

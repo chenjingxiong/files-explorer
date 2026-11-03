@@ -1479,6 +1479,8 @@ async function openPreviewWindow() {
     background: var(--bg-hover);
     border-radius: 6px;
 }
+.preview-area,
+.preview-markdown,
 .preview-info,
 .preview-info-name,
 .props-table,

@@ -69,6 +69,7 @@ export interface AppSettings {
   termFontCustom: string;
   ribbonCollapsed?: boolean;
   replaceWinE?: boolean;
+  enableWinContextMenu?: boolean;
 }
 
 function loadBookmarks(): Bookmark[] {
@@ -128,6 +129,7 @@ function loadSettings(): AppSettings {
         termFontCustom: parsed.termFontCustom || "",
         ribbonCollapsed: loadRibbonCollapsed(),
         replaceWinE: parsed.replaceWinE ?? false,
+        enableWinContextMenu: parsed.enableWinContextMenu ?? true,
       };
     }
   } catch {}
@@ -146,6 +148,7 @@ function loadSettings(): AppSettings {
     termFontCustom: "",
     ribbonCollapsed: loadRibbonCollapsed(),
     replaceWinE: false,
+    enableWinContextMenu: true,
   };
 }
 
@@ -181,6 +184,7 @@ export const useSettingsStore = defineStore("settings", () => {
   const quitOnClose = ref<boolean>(initial.quitOnClose ?? false);
   const ribbonCollapsed = ref<boolean>(initial.ribbonCollapsed ?? false);
   const replaceWinE = ref<boolean>(initial.replaceWinE ?? false);
+  const enableWinContextMenu = ref<boolean>(initial.enableWinContextMenu ?? true);
   const termEmulation = ref<TermEmulation>(
     initial.termEmulation || "xterm-256color",
   );
@@ -215,6 +219,11 @@ export const useSettingsStore = defineStore("settings", () => {
 
   function setIconTheme(t: IconTheme) {
     iconTheme.value = t;
+    persist();
+  }
+
+  function setEnableWinContextMenu(v: boolean) {
+    enableWinContextMenu.value = v;
     persist();
   }
 
@@ -377,6 +386,8 @@ export const useSettingsStore = defineStore("settings", () => {
     quitOnClose,
     ribbonCollapsed,
     replaceWinE,
+    enableWinContextMenu,
+    setEnableWinContextMenu,
     setReplaceWinE,
     bookmarks,
     addBookmark,

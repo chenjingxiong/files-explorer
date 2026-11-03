@@ -2024,6 +2024,7 @@ onMounted(async () => {
     margin: 4px 6px;
 }
 .pw-preview,
+.pw-preview *,
 .pw-meta,
 .pw-archive-item,
 .pw-archive-name,

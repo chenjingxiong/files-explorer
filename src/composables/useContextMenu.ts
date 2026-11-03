@@ -43,6 +43,8 @@ let winPreloaded = false;
 
 export async function preloadWinContextMenu() {
   if (winPreloaded) return;
+  const settings = useSettingsStore();
+  if (!settings.enableWinContextMenu) return;
   try {
     const items = await getWindowsContextMenu();
     cachedWinItems.value = items || [];
@@ -60,6 +62,7 @@ export function useContextMenu() {
   const store = useFileStore();
   const sel = useSelectionStore();
   const view = useViewStore();
+  const settings = useSettingsStore();
 
   const isMac =
     typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
@@ -275,7 +278,7 @@ export function useContextMenu() {
     );
 
     // ── 3. Windows System Context Menu (从预存好的后台上下文立即构建) ──
-    if (cachedWinItems.value.length > 0) {
+    if (settings.enableWinContextMenu && cachedWinItems.value.length > 0) {
       const matchingWinItems = cachedWinItems.value.filter((item) => {
         if (item.applies_to === "all") return true;
         if (targetType === "background") return item.applies_to === "background";

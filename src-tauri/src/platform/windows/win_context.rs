@@ -1,8 +1,8 @@
 // platform/windows/win_context.rs
-// Windows context menu extraction and execution with background pre-caching.
+// Windows context menu extraction and execution with disk persistence.
 
 use serde::{Deserialize, Serialize};
-use std::sync::OnceLock;
+use std::sync::RwLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WinContextItem {
@@ -13,7 +13,7 @@ pub struct WinContextItem {
     pub applies_to: String, // "file", "directory", "background", "all"
 }
 
-static WIN_CONTEXT_CACHE: OnceLock<Vec<WinContextItem>> = OnceLock::new();
+static WIN_CONTEXT_CACHE: RwLock<Vec<WinContextItem>> = RwLock::new(Vec::new());
 
 fn get_cache_file_path() -> std::path::PathBuf {
     use crate::platform::PlatformPath;
@@ -22,34 +22,79 @@ fn get_cache_file_path() -> std::path::PathBuf {
     let _ = std::fs::create_dir_all(&dir);
     dir.join("win_context_cache.json")
 }
-/// Pre-cache Windows context menu items in a background thread at startup.
-/// Next instance or startup will reuse the previously saved cache file on disk without rescanning.
-pub fn init_cache_background() {
+
+/// Fast startup: strictly load from pre-saved disk cache only.
+/// NEVER scans the registry on startup, ensuring startup remains instantaneous (< 1ms).
+pub fn load_cache_from_disk_only() {
     #[cfg(target_os = "windows")]
-    std::thread::spawn(|| {
+    {
         let cache_file = get_cache_file_path();
         if cache_file.exists() {
             if let Ok(content) = std::fs::read_to_string(&cache_file) {
                 if let Ok(items) = serde_json::from_str::<Vec<WinContextItem>>(&content) {
-                    if !items.is_empty() {
-                        let count = items.len();
-                        let _ = WIN_CONTEXT_CACHE.set(items);
-                        tracing::info!("Windows context menu loaded from existing cache file with {} items (skipped registry scan)", count);
-                        return;
+                    let count = items.len();
+                    if let Ok(mut lock) = WIN_CONTEXT_CACHE.write() {
+                        *lock = items;
                     }
+                    tracing::info!("Loaded {} cached Windows context items from disk (fast startup, 0ms registry)", count);
+                    return;
                 }
             }
         }
+        tracing::info!("No Windows context cache file found; skipping registry scan on startup");
+    }
+}
 
-        tracing::info!("First-time reading Windows context menu from registry...");
-        let items = read_all_win_context_items();
-        let count = items.len();
-        if let Ok(json) = serde_json::to_string(&items) {
-            let _ = std::fs::write(&cache_file, json);
+/// Backwards compatibility alias for tauri_setup
+pub fn init_cache_background() {
+    load_cache_from_disk_only();
+}
+
+#[cfg(target_os = "windows")]
+fn resolve_mui_string(s: &str) -> String {
+    if !s.starts_with('@') {
+        return s.to_string();
+    }
+    use std::os::windows::ffi::OsStrExt;
+    use std::ffi::OsStr;
+    let wide: Vec<u16> = OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect();
+    let mut out_buf = [0u16; 1024];
+
+    #[link(name = "shlwapi")]
+    extern "system" {
+        fn SHLoadIndirectString(
+            pszSource: *const u16,
+            pszOutBuf: *mut u16,
+            cchOutBuf: u32,
+            ppvReserved: *mut *mut std::ffi::c_void,
+        ) -> i32;
+    }
+
+    let hr = unsafe {
+        SHLoadIndirectString(wide.as_ptr(), out_buf.as_mut_ptr(), out_buf.len() as u32, std::ptr::null_mut())
+    };
+
+    if hr == 0 {
+        let len = out_buf.iter().position(|&c| c == 0).unwrap_or(out_buf.len());
+        let res = String::from_utf16_lossy(&out_buf[..len]);
+        let trimmed = res.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
         }
-        let _ = WIN_CONTEXT_CACHE.set(items);
-        tracing::info!("Windows context menu cache saved to disk with {} items", count);
-    });
+    }
+    s.to_string()
+}
+
+#[cfg(target_os = "windows")]
+fn fix_mojibake(s: &str) -> String {
+    if let (cow, _, false) = encoding_rs::GB18030.encode(s) {
+        if let Ok(utf8_str) = std::str::from_utf8(&cow) {
+            if !utf8_str.is_empty() && utf8_str != s && (utf8_str.chars().any(|c| c >= '\u{4e00}' && c <= '\u{9fa5}') || utf8_str.contains("Code") || utf8_str.contains("Sublime")) {
+                return utf8_str.to_string();
+            }
+        }
+    }
+    s.to_string()
 }
 
 #[cfg(target_os = "windows")]
@@ -120,15 +165,18 @@ fn read_verbs_from_key(
         }
 
         // Title: check MUIVerb, then (default), then subkey_name
-        let title: String = item_key.get_value("MUIVerb")
+        let raw_title: String = item_key.get_value("MUIVerb")
             .unwrap_or_else(|_| item_key.get_value("").unwrap_or_default());
         
-        let title = title.trim();
-        let display_title = if title.is_empty() {
-            clean_verb_name(&subkey_name)
+        let mut display_title = raw_title.replace('&', "").trim().to_string();
+        if display_title.starts_with('@') {
+            display_title = resolve_mui_string(&display_title);
+        }
+        if display_title.starts_with('@') || display_title.is_empty() {
+            display_title = clean_verb_name(&subkey_name);
         } else {
-            title.replace('&', "").trim().to_string()
-        };
+            display_title = fix_mojibake(&display_title);
+        }
 
         if display_title.is_empty() {
             continue;
@@ -175,32 +223,57 @@ fn clean_verb_name(name: &str) -> String {
         "git_shell" => "Git Bash".to_string(),
         "git_gui" => "Git GUI".to_string(),
         "gitkraken" => "GitKraken".to_string(),
+        "anycode" => "在 Visual Studio 中打开".to_string(),
+        "runas" => "以管理员身份打开 PowerShell".to_string(),
         _ => name.replace('_', " ").trim().to_string(),
     }
 }
 
+/// Retrieve the currently cached context menu items.
+/// Strictly returns in-memory items or loads existing disk cache. Never rescans registry.
 pub fn get_context_menu_impl() -> Result<Vec<WinContextItem>, String> {
     #[cfg(target_os = "windows")]
     {
-        if let Some(items) = WIN_CONTEXT_CACHE.get() {
-            return Ok(items.clone());
+        if let Ok(lock) = WIN_CONTEXT_CACHE.read() {
+            if !lock.is_empty() {
+                return Ok(lock.clone());
+            }
         }
         let cache_file = get_cache_file_path();
         if cache_file.exists() {
             if let Ok(content) = std::fs::read_to_string(&cache_file) {
                 if let Ok(items) = serde_json::from_str::<Vec<WinContextItem>>(&content) {
-                    if !items.is_empty() {
-                        let _ = WIN_CONTEXT_CACHE.set(items.clone());
-                        return Ok(items);
+                    if let Ok(mut lock) = WIN_CONTEXT_CACHE.write() {
+                        *lock = items.clone();
                     }
+                    return Ok(items);
                 }
             }
         }
+        Ok(Vec::new())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(Vec::new())
+    }
+}
+
+/// Explicitly rescan Windows context menu from registry on user demand,
+/// update the disk cache file in app data directory, and update the memory cache.
+pub fn refresh_windows_context_menu_impl() -> Result<Vec<WinContextItem>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        tracing::info!("Refreshing Windows context menu from registry upon user request...");
         let items = read_all_win_context_items();
-        if let Ok(json) = serde_json::to_string(&items) {
+        let count = items.len();
+        let cache_file = get_cache_file_path();
+        if let Ok(json) = serde_json::to_string_pretty(&items) {
             let _ = std::fs::write(&cache_file, json);
         }
-        let _ = WIN_CONTEXT_CACHE.set(items.clone());
+        if let Ok(mut lock) = WIN_CONTEXT_CACHE.write() {
+            *lock = items.clone();
+        }
+        tracing::info!("Windows context menu refreshed: {} items saved to disk at {:?}", count, cache_file);
         Ok(items)
     }
     #[cfg(not(target_os = "windows"))]

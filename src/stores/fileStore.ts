@@ -206,7 +206,15 @@ export const useFileStore = defineStore("file", () => {
     }
 
     if (addToHistory) {
-      useNavigationStore().pushHistory(path);
+      if (view.viewMode === "column") {
+        const tab = getTabStore().getFocusedTab();
+        useNavigationStore().pushHistory({
+          path,
+          stack: tab?.columnStack ? tab.columnStack.map((c) => ({ ...c, files: [...c.files] })) : [],
+        });
+      } else {
+        useNavigationStore().pushHistory(path);
+      }
     }
 
     const tabId = getTabStore().getFocusedTab()?.id || "_root";
@@ -324,7 +332,8 @@ export const useFileStore = defineStore("file", () => {
           files: [...c.files],
         }));
       }
-      files.value = target.stack.length > 0 ? [...target.stack[0].files] : [];
+      files.value = target.stack.length > 0 ? [...target.stack[target.stack.length - 1].files] : [];
+        if (tab) tab.path = normalizePath(target.path);
       useSelectionStore().clearSelection();
     }
   }
@@ -346,7 +355,8 @@ export const useFileStore = defineStore("file", () => {
           files: [...c.files],
         }));
       }
-      files.value = snap.stack.length > 0 ? [...snap.stack[0].files] : [];
+      files.value = snap.stack.length > 0 ? [...snap.stack[snap.stack.length - 1].files] : [];
+        if (tab) tab.path = normalizePath(snap.path);
       useSelectionStore().clearSelection();
     }
   }

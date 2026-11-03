@@ -22,7 +22,7 @@ pub fn init_logging() {
     logger::init();
     tracing::info!("=== Files Explorer started ===");
     #[cfg(target_os = "windows")]
-    crate::platform::windows::win_context::init_cache_background();
+    crate::platform::windows::win_context::load_cache_from_disk_only();
 }
 
 /// Build the Tauri application.
@@ -98,6 +98,7 @@ pub fn build_app() -> tauri::App {
             crate::terminal_kill_all,
             crate::get_default_shell,
             crate::get_windows_context_menu,
+            crate::refresh_windows_context_menu,
             crate::execute_windows_context_item,
             crate::is_win_e_replacement_enabled,
             crate::set_win_e_replacement,

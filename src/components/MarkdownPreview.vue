@@ -53,7 +53,7 @@
                 v-else
                 class="md-content"
                 v-html="renderedHtml"
-                @contextmenu.stop
+                
             />
         </div>
         <textarea
@@ -359,6 +359,27 @@ async function exportAs(format: "html" | "doc" | "pdf") {
     background: var(--accent);
     color: #fff;
     border-color: var(--accent);
+}
+
+
+.md-root {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+.md-preview,
+.md-content,
+.md-content * {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+.md-toolbar,
+.md-toolbar * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+.md-editor {
+    user-select: text !important;
+    -webkit-user-select: text !important;
 }
 
 /* ── Preview content ── */

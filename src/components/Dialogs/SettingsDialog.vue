@@ -793,6 +793,8 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { APP_VERSION } from "@/utils/version";
 import { checkForUpdates, downloadSilently, subscribeUpdateTask } from "@/utils/updater";
 import { useToast } from "@/composables/useToast";
+import { refreshWindowsContextMenu } from "@/utils/tauri";
+import { cachedWinItems } from "@/composables/useContextMenu";
 import type {
     ThemeMode,
     FontSize,
@@ -802,6 +804,21 @@ import type {
 } from "@/stores/settingsStore";
 
 const { t, locale } = useI18n();
+const updatingWinContext = ref(false);
+
+async function handleUpdateWinContextMenu() {
+    if (updatingWinContext.value) return;
+    updatingWinContext.value = true;
+    try {
+        const items = await refreshWindowsContextMenu();
+        cachedWinItems.value = items || [];
+        toast.show(t("settings.winContextUpdated", { count: items?.length || 0 }));
+    } catch (e) {
+        toast.show(String(e), true);
+    } finally {
+        updatingWinContext.value = false;
+    }
+}
 const settings = useSettingsStore();
 const toast = useToast();
 // ── Dialog resize handling ──
@@ -1857,4 +1874,38 @@ function handleLocaleChange(l: string) {
 .switch-track.active .switch-thumb {
     transform: translateX(18px);
 }
+
+.switch-row-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.switch-row-container .switch-row {
+    flex: 1;
+}
+.win-ctx-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    height: 36px;
+}
+.win-ctx-refresh-btn:hover:not(:disabled) {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+}
+.win-ctx-refresh-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 </style>

@@ -304,3 +304,7 @@ export async function isWinEReplacementEnabled(): Promise<boolean> {
 export async function setWinEReplacement(enabled: boolean): Promise<void> {
   return invoke("set_win_e_replacement", { enabled });
 }
+
+export async function refreshWindowsContextMenu(): Promise<import("@/types").WinContextItem[]> {
+  return invoke("refresh_windows_context_menu");
+}
