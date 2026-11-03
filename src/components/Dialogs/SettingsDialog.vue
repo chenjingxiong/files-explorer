@@ -821,7 +821,9 @@
                 </div>
             </div>
             <!-- Dialog resize handle -->
-            <div class="dialog-resize-handle" @mousedown.prevent.stop="onDialogResizeStart" />
+            <div class="dialog-resize-e" @mousedown.prevent.stop="onResizeStart($event, 'e')" />
+            <div class="dialog-resize-s" @mousedown.prevent.stop="onResizeStart($event, 's')" />
+            <div class="dialog-resize-se" @mousedown.prevent.stop="onResizeStart($event, 'se')" />
         </div>
     </div>
 </template>
@@ -863,62 +865,70 @@ const settings = useSettingsStore();
 const toast = useToast();
 // ── Dialog resize handling ──
 function loadDialogSize(): { width: number; height: number } {
+    const maxW = Math.max(window.innerWidth - 40, 500);
+    const maxH = Math.max(window.innerHeight - 40, 400);
     try {
         const raw = localStorage.getItem("settings-dialog-size");
         if (raw) {
             const parsed = JSON.parse(raw);
             if (parsed.width && parsed.height) {
                 return {
-                    width: Math.min(Math.max(parsed.width, 500), window.innerWidth - 30),
-                    height: Math.min(Math.max(parsed.height, 450), window.innerHeight - 30),
+                    width: Math.min(Math.max(parsed.width, 500), maxW),
+                    height: Math.min(Math.max(parsed.height, 400), maxH),
                 };
             }
         }
     } catch {}
-    return { width: 680, height: 750 };
+    return { width: Math.min(760, maxW), height: Math.min(580, maxH) };
 }
 const dialogSize = reactive(loadDialogSize());
 const dialogWidth = computed(() => dialogSize.width);
 const dialogHeight = computed(() => dialogSize.height);
 
 let _resizingDialog = false;
+let _resizeDir = "se";
 let _startX = 0;
 let _startY = 0;
 let _startW = 0;
 let _startH = 0;
 
-function onDialogResizeStart(e: MouseEvent) {
+function onResizeStart(e: MouseEvent, dir: "e" | "s" | "se") {
     _resizingDialog = true;
+    _resizeDir = dir;
     _startX = e.clientX;
     _startY = e.clientY;
     _startW = dialogSize.width;
     _startH = dialogSize.height;
-    addEventListener("mousemove", onDialogResizeMove);
-    addEventListener("mouseup", onDialogResizeEnd);
-    document.body.style.cursor = "nwse-resize";
+    addEventListener("mousemove", onResizeMove);
+    addEventListener("mouseup", onResizeEnd);
+    document.body.style.cursor = dir === "e" ? "ew-resize" : dir === "s" ? "ns-resize" : "nwse-resize";
     document.body.style.userSelect = "none";
 }
 
-function onDialogResizeMove(e: MouseEvent) {
+function onResizeMove(e: MouseEvent) {
     if (!_resizingDialog) return;
     const maxW = window.innerWidth - 30;
     const maxH = window.innerHeight - 30;
-    dialogSize.width = Math.min(maxW, Math.max(500, _startW + (e.clientX - _startX)));
-    dialogSize.height = Math.min(maxH, Math.max(450, _startH + (e.clientY - _startY)));
+    if (_resizeDir === "e" || _resizeDir === "se") {
+        dialogSize.width = Math.min(maxW, Math.max(500, _startW + (e.clientX - _startX)));
+    }
+    if (_resizeDir === "s" || _resizeDir === "se") {
+        dialogSize.height = Math.min(maxH, Math.max(400, _startH + (e.clientY - _startY)));
+    }
 }
 
-function onDialogResizeEnd() {
+function onResizeEnd() {
     if (!_resizingDialog) return;
     _resizingDialog = false;
-    removeEventListener("mousemove", onDialogResizeMove);
-    removeEventListener("mouseup", onDialogResizeEnd);
+    removeEventListener("mousemove", onResizeMove);
+    removeEventListener("mouseup", onResizeEnd);
     document.body.style.cursor = "";
     document.body.style.userSelect = "";
     localStorage.setItem("settings-dialog-size", JSON.stringify({ width: dialogSize.width, height: dialogSize.height }));
 }
 onUnmounted(() => {
-    removeEventListener("mousemove", onDialogResizeMove);
-    removeEventListener("mouseup", onDialogResizeEnd);
+    removeEventListener("mousemove", onResizeMove);
+    removeEventListener("mouseup", onResizeEnd);
 });
 const activeTab = ref("general");
 const termDropdownOpen = ref(false);
@@ -1137,16 +1147,34 @@ function handleLocaleChange(l: string) {
     box-shadow: 0 24px 64px var(--shadow);
     animation: dialog-in 0.2s ease-out;
 }
-.dialog-resize-handle {
+.dialog-resize-e {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 6px;
+    height: 100%;
+    cursor: ew-resize;
+    z-index: 10;
+}
+.dialog-resize-s {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 6px;
+    cursor: ns-resize;
+    z-index: 10;
+}
+.dialog-resize-se {
     position: absolute;
     bottom: 0;
     right: 0;
     width: 18px;
     height: 18px;
     cursor: nwse-resize;
-    z-index: 10;
+    z-index: 11;
 }
-.dialog-resize-handle::after {
+.dialog-resize-se::after {
     content: "";
     position: absolute;
     bottom: 5px;
@@ -1157,7 +1185,7 @@ function handleLocaleChange(l: string) {
     border-bottom: 2px solid var(--text-muted);
     opacity: 0.6;
 }
-.dialog-resize-handle:hover::after {
+.dialog-resize-se:hover::after {
     opacity: 1;
     border-color: var(--accent);
 }

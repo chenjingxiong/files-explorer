@@ -168,7 +168,8 @@ import TerminalPanel from "@/components/TerminalPanel.vue";
 import UpdaterChecker from "@/components/UpdaterChecker.vue";
 
 import { useToast } from "@/composables/useToast";
-import { useContextMenu } from "@/composables/useContextMenu";
+import { useContextMenu, preloadWinContextMenu, cachedWinItems } from "@/composables/useContextMenu";
+import { PhysicalPosition, PhysicalSize } from "@tauri-apps/api/dpi";
 import { useFileActions } from "@/composables/useFileActions";
 import { usePanelNavigation } from "@/composables/usePanelNavigation";
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts";
@@ -388,7 +389,9 @@ async function handleContextAction(action: string) {
         const path = sel.selectedFiles.size > 0 ? [...sel.selectedFiles][0] : store.currentPath;
         if (path) {
             try {
-                await tauri.executeWindowsContextItem(verbId, path);
+                const matchedItem = cachedWinItems.value.find((x) => x.id === verbId);
+                const cmdToExec = matchedItem?.command || verbId;
+                await tauri.executeWindowsContextItem(cmdToExec, path);
             } catch (e: any) {
                 toast.show(t("toast.error") + ": " + (e?.message || e), true);
             }
@@ -500,15 +503,105 @@ async function doClearCache() {
     toast.show(t("tray.cacheCleared"));
 }
 
+
+interface WindowBounds {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    maximized: boolean;
+}
+
+async function saveWindowBounds() {
+    try {
+        const win = getCurrentWebviewWindow();
+        const isMax = await win.isMaximized();
+        if (isMax) {
+            const prev = localStorage.getItem("app-window-bounds");
+            const parsed = prev ? JSON.parse(prev) : {};
+            parsed.maximized = true;
+            localStorage.setItem("app-window-bounds", JSON.stringify(parsed));
+            return;
+        }
+        const pos = await win.outerPosition();
+        const size = await win.outerSize();
+        if (size.width >= 400 && size.height >= 300) {
+            const bounds: WindowBounds = {
+                x: pos.x,
+                y: pos.y,
+                width: size.width,
+                height: size.height,
+                maximized: false,
+            };
+            localStorage.setItem("app-window-bounds", JSON.stringify(bounds));
+        }
+    } catch (e) {
+        /* ignore */
+    }
+}
+
+async function restoreWindowBounds() {
+    try {
+        const saved = localStorage.getItem("app-window-bounds");
+        if (!saved) return;
+        const b: WindowBounds = JSON.parse(saved);
+        const win = getCurrentWebviewWindow();
+        if (b.width && b.height && b.width >= 400 && b.height >= 300) {
+            await win.setSize(new PhysicalSize(b.width, b.height));
+        }
+        if (typeof b.x === "number" && typeof b.y === "number") {
+            if (b.x >= -3000 && b.y >= -3000 && b.x <= 30000 && b.y <= 30000) {
+                await win.setPosition(new PhysicalPosition(b.x, b.y));
+            }
+        }
+        if (b.maximized) {
+            await win.maximize();
+        }
+    } catch (e) {
+        console.warn("Failed to restore window bounds:", e);
+    }
+}
+
 onMounted(async () => {
-    // Signal splashscreen: frontend ready immediately
+    // 1. Restore window bounds before revealing window
+    await restoreWindowBounds();
+
+    // 2. Preload Windows context items immediately into reactive memory
+    preloadWinContextMenu().catch(() => {});
+
+    // 3. Signal splashscreen: frontend ready immediately
     try {
         const { invoke } = await import("@tauri-apps/api/core");
         await invoke("set_complete", { task: "frontend" });
     } catch {
         /* ignore */
     }
-    // ── Window geometry handled by tauri-plugin-window-state ──
+
+    // 4. Setup window resize & move persistence
+    let _resizeTimer: any = null;
+    let _unlistenResize: (() => void) | null = null;
+    let _unlistenMove: (() => void) | null = null;
+    let _unlistenClose: (() => void) | null = null;
+    try {
+        const win = getCurrentWebviewWindow();
+        _unlistenResize = await win.onResized(() => {
+            clearTimeout(_resizeTimer);
+            _resizeTimer = setTimeout(() => {
+                saveWindowBounds();
+            }, 300);
+        });
+        _unlistenMove = await win.onMoved(() => {
+            clearTimeout(_resizeTimer);
+            _resizeTimer = setTimeout(() => {
+                saveWindowBounds();
+            }, 300);
+        });
+        _unlistenClose = await win.onCloseRequested(async () => {
+            await saveWindowBounds();
+        });
+    } catch {
+        /* ignore */
+    }
 
     // ── Sync settings to backend (safe: Tauri IPC ready) ──
     settings.syncToBackend();
@@ -660,6 +753,7 @@ onMounted(async () => {
 
     // ── Helper: save a session snapshot ──
     function _saveSessionNow() {
+        saveWindowBounds();
         try {
             const { layout, focusPaneIndexPath } = serializeLayout(
                 tabStore.rootLayout,
@@ -745,6 +839,9 @@ onMounted(async () => {
 
     onUnmounted(() => {
         window.removeEventListener("beforeunload", _saveSessionNow);
+        _unlistenResize?.();
+        _unlistenMove?.();
+        _unlistenClose?.();
         _trayNavUnlisten?.();
         _traySettingsUnlisten?.();
         _trayHideUnlisten?.();

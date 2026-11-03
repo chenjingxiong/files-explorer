@@ -41,10 +41,8 @@ const I = {
 export const cachedWinItems = ref<WinContextItem[]>([]);
 let winPreloaded = false;
 
-export async function preloadWinContextMenu() {
-  if (winPreloaded) return;
-  const settings = useSettingsStore();
-  if (!settings.enableWinContextMenu) return;
+export async function preloadWinContextMenu(force = false) {
+  if (winPreloaded && !force) return;
   try {
     const items = await getWindowsContextMenu();
     cachedWinItems.value = items || [];
@@ -72,7 +70,7 @@ export function useContextMenu() {
   const hasClipboardContent = ref(false);
 
   async function openContextMenu(x: number, y: number) {
-    if (!winPreloaded && settings.enableWinContextMenu) {
+    if (!winPreloaded) {
       preloadWinContextMenu();
     }
     contextMenuPos.value = { x, y };
