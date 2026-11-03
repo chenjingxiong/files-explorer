@@ -501,6 +501,13 @@ async function doClearCache() {
 }
 
 onMounted(async () => {
+    // Signal splashscreen: frontend ready immediately
+    try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("set_complete", { task: "frontend" });
+    } catch {
+        /* ignore */
+    }
     // ── Window geometry handled by tauri-plugin-window-state ──
 
     // ── Sync settings to backend (safe: Tauri IPC ready) ──
@@ -746,13 +753,6 @@ onMounted(async () => {
         store.stopDrivePolling();
     });
 
-    // Signal splashscreen: frontend ready
-    try {
-        const { invoke } = await import("@tauri-apps/api/core");
-        await invoke("set_complete", { task: "frontend" });
-    } catch {
-        /* ignore */
-    }
 });
 </script>
 

@@ -54,8 +54,6 @@ export async function preloadWinContextMenu() {
   }
 }
 
-// Background pre-fetch immediately
-preloadWinContextMenu();
 
 export function useContextMenu() {
   const { t } = useI18n();
@@ -74,6 +72,9 @@ export function useContextMenu() {
   const hasClipboardContent = ref(false);
 
   async function openContextMenu(x: number, y: number) {
+    if (!winPreloaded && settings.enableWinContextMenu) {
+      preloadWinContextMenu();
+    }
     contextMenuPos.value = { x, y };
     showContextMenu.value = true;
     try {

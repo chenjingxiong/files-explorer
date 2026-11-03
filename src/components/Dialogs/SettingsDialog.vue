@@ -776,6 +776,46 @@
                                     <div class="switch-thumb" />
                                 </div>
                             </label>
+                            <div class="switch-row-container">
+                                <label
+                                    class="switch-row"
+                                    @click="settings.setEnableWinContextMenu(!settings.enableWinContextMenu)"
+                                >
+                                    <div class="switch-text">
+                                        <span>{{ t("settings.winContextMenu") }}</span>
+                                        <span class="switch-desc">{{
+                                            t("settings.winContextMenuDesc")
+                                        }}</span>
+                                    </div>
+                                    <div
+                                        class="switch-track"
+                                        :class="{ active: settings.enableWinContextMenu }"
+                                    >
+                                        <div class="switch-thumb" />
+                                    </div>
+                                </label>
+                                <button
+                                    class="win-ctx-refresh-btn"
+                                    :disabled="updatingWinContext"
+                                    :title="t('settings.updateWinContextMenuDesc')"
+                                    @click.stop="handleUpdateWinContextMenu"
+                                >
+                                    <svg
+                                        v-if="updatingWinContext"
+                                        class="spinner"
+                                        viewBox="0 0 14 14"
+                                        width="14"
+                                        height="14"
+                                    >
+                                        <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="24 8" />
+                                    </svg>
+                                    <svg v-else viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M2 7a5 5 0 015-5 4.9 4.9 0 013.5 1.5M12 7a5 5 0 01-5 5 4.9 4.9 0 01-3.5-1.5" />
+                                        <path d="M9.5 2V4.5H12M4.5 12V9.5H2" />
+                                    </svg>
+                                    <span>{{ updatingWinContext ? t("settings.updating") : t("settings.updateWinContextMenu") }}</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
