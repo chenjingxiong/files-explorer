@@ -7,6 +7,7 @@ mod utils;
 
 mod clipboard;
 mod compress;
+pub mod engine;
 mod search;
 mod terminal;
 mod tray;

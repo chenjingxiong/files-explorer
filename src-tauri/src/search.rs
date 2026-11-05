@@ -1,33 +1,29 @@
 use crate::core::error::AppResult;
 use crate::core::state::AppState;
 use crate::core::types::{FileEntry, SearchProgress, SEARCH_BATCH_SIZE, SEARCH_MAX_RESULTS};
-use crate::platform;
+use crate::engine::{EverythingEngine, SearchOptions};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
+use std::sync::OnceLock;
 use tauri::{AppHandle, Emitter, State};
-use walkdir::WalkDir;
 
-/// Maximum file size (in bytes) for content search. Files larger than this are skipped.
+static EVERYTHING_ENGINE: OnceLock<EverythingEngine> = OnceLock::new();
+
+/// Return or initialize the global Everything core engine for files-explorer
+pub fn get_everything_engine() -> &'static EverythingEngine {
+    EVERYTHING_ENGINE.get_or_init(|| {
+        let engine = EverythingEngine::new();
+        // Index all local drives in the background
+        let engine_clone = engine.clone();
+        std::thread::spawn(move || {
+            let _ = engine_clone.index_all_drives();
+        });
+        engine
+    })
+}
 
 pub fn wildcard_match(pattern: &str, filename: &str) -> bool {
-    let p: Vec<char> = pattern.chars().collect();
-    let f: Vec<char> = filename.chars().collect();
-    fn rec(p: &[char], f: &[char]) -> bool {
-        match (p.is_empty(), f.is_empty()) {
-            (true, true) => true,
-            (true, false) => false,
-            (false, true) => p.iter().all(|&c| c == '*'),
-            (false, false) => {
-                if p[0] == '*' {
-                    rec(&p[1..], f) || rec(p, &f[1..])
-                } else if p[0] == '?' || p[0].to_ascii_lowercase() == f[0].to_ascii_lowercase() {
-                    rec(&p[1..], &f[1..])
-                } else {
-                    false
-                }
-            }
-        }
-    }
-    rec(&p, &f)
+    crate::engine::query::wildcard_match(pattern, filename, false)
 }
 
 /// Parse a size filter like ">10MB" or "<1GB" into (operator, bytes)
@@ -38,7 +34,6 @@ pub fn parse_size_filter(s: &str) -> Option<(char, u64)> {
         return None;
     }
     let rest = s[1..].trim();
-    // Extract numeric part
     let num_end = rest
         .find(|c: char| !c.is_ascii_digit() && c != '.')
         .unwrap_or(rest.len());
@@ -64,7 +59,6 @@ pub fn condition_matches_file(condition: &str, name: &str, size: u64) -> bool {
     if cond.is_empty() {
         return false;
     }
-    // Size filter?
     if let Some((op, threshold)) = parse_size_filter(cond) {
         return match op {
             '>' => size > threshold,
@@ -72,15 +66,13 @@ pub fn condition_matches_file(condition: &str, name: &str, size: u64) -> bool {
             _ => false,
         };
     }
-    // Wildcard pattern? (contains * or ?)
     if cond.contains('*') || cond.contains('?') {
         return wildcard_match(cond, name);
     }
-    // Plain text: substring match (case-insensitive)
     name.to_lowercase().contains(&cond.to_lowercase())
 }
 
-/// Run search in a dedicated thread so it never blocks the UI
+/// Run Everything search in a dedicated thread so it never blocks the UI
 pub fn search_files(
     app: AppHandle,
     state: State<AppState>,
@@ -91,12 +83,8 @@ pub fn search_files(
     state.search_cancel.store(false, Ordering::SeqCst);
     let cancel = state.search_cancel.clone();
 
-    let conditions: Vec<String> = query
-        .split('|')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-    if conditions.is_empty() {
+    let q = query.trim().to_string();
+    if q.is_empty() {
         let _ = app.emit(
             "search-progress",
             SearchProgress {
@@ -111,43 +99,43 @@ pub fn search_files(
 
     let dir = directory.clone();
     let app_clone = app.clone();
+    let engine = get_everything_engine();
 
-    // Spawn on a dedicated OS thread — never blocks Tauri's IPC thread
     std::thread::spawn(move || {
+        let dir_path = Path::new(&dir);
+        let (filter_dir, search_query) = if !dir.is_empty() && dir != "/" && dir_path.exists() {
+            // If the folder is specific and not fully in the index yet, index it
+            if engine.get_indexed_count() < 1000 {
+                engine.index_path(dir_path);
+            }
+            let mut norm = dir.replace('/', "\\");
+            if !norm.ends_with('\\') {
+                norm.push('\\');
+            }
+            let norm_lower = norm.to_lowercase();
+            let clean_dir_token = norm.trim_end_matches('\\');
+            let q_with_path = if !q.to_lowercase().contains("path:") {
+                format!("{} path:\"{}\"", q, clean_dir_token)
+            } else {
+                q.clone()
+            };
+            (Some(norm_lower), q_with_path)
+        } else {
+            (None, q.clone())
+        };
+
+        let mut options = SearchOptions::default();
+        if filter_dir.is_none() {
+            options.max_results = Some(SEARCH_MAX_RESULTS as usize);
+        }
+
+        let (entries, _) = engine.search(&search_query, &options);
+
         let mut batch: Vec<FileEntry> = Vec::new();
         let mut total: u64 = 0;
         let mut truncated = false;
 
-        let walker = WalkDir::new(&dir)
-            .follow_links(false)
-            .into_iter()
-            .filter_entry(|e| {
-                // Skip well-known directories that are never user files
-                let name = e.file_name().to_str().unwrap_or("");
-                !matches!(
-                    name,
-                    "node_modules"
-                        | ".git"
-                        | "target"
-                        | ".next"
-                        | ".nuxt"
-                        | "__pycache__"
-                        | ".venv"
-                        | "venv"
-                        | ".tox"
-                        | ".mypy_cache"
-                        | "dist"
-                        | ".cache"
-                        | ".sass-cache"
-                        | ".parcel-cache"
-                        | "vendor"
-                        | ".terraform"
-                        | ".serverless"
-                )
-            })
-            .filter_map(|e| e.ok());
-        for entry in walker {
-            // Check cancellation (thread-safe AtomicBool)
+        for entry in entries {
             if cancel.load(Ordering::SeqCst) {
                 let files = std::mem::take(&mut batch);
                 let _ = app_clone.emit(
@@ -162,51 +150,28 @@ pub fn search_files(
                 return;
             }
 
+            if let Some(ref d) = filter_dir {
+                let entry_full_lower = entry.full_path.replace('/', "\\").to_lowercase();
+                if !entry_full_lower.starts_with(d) {
+                    continue;
+                }
+            }
+
             if total >= SEARCH_MAX_RESULTS {
                 truncated = true;
                 break;
             }
 
-            let path = entry.path().to_path_buf();
-            let file_name = entry.file_name().to_string_lossy().to_string();
-            let metadata = match entry.metadata() {
-                Ok(m) => m,
-                Err(_) => continue,
-            };
-            let is_dir = entry.file_type().is_dir();
-            let file_size = if is_dir { 0 } else { metadata.len() };
-            let fs_ext = platform::fs_ext_provider();
-            let modified = fs_ext
-                .modified_time(&metadata)
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_secs() as i64)
-                .unwrap_or(0);
-            let created = fs_ext
-                .created_time(&metadata)
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_secs() as i64)
-                .unwrap_or(0);
-            let extension = path
-                .extension()
-                .map(|e| e.to_string_lossy().to_string())
-                .unwrap_or_default();
-
-            let matched = conditions
-                .iter()
-                .any(|cond| condition_matches_file(cond, &file_name, file_size));
-            if !matched {
-                continue;
-            }
-
             total += 1;
+            let full_pb = PathBuf::from(&entry.full_path);
             batch.push(FileEntry {
-                name: file_name,
-                path: crate::core::fs_helper::path_for_frontend(&path),
-                is_dir,
-                size: file_size,
-                modified,
-                created,
-                extension,
+                name: entry.name,
+                path: crate::core::fs_helper::path_for_frontend(&full_pb),
+                is_dir: entry.is_dir,
+                size: entry.size,
+                modified: entry.modified,
+                created: entry.created,
+                extension: entry.extension,
             });
 
             if batch.len() >= SEARCH_BATCH_SIZE {
@@ -240,5 +205,6 @@ pub fn search_files(
 
 pub fn cancel_search(state: State<AppState>) -> AppResult<()> {
     state.search_cancel.store(true, Ordering::SeqCst);
+    get_everything_engine().cancel_search();
     Ok(())
 }

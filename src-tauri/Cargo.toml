@@ -76,12 +76,18 @@ arboard = "3"
 # Cross-platform PTY (terminal)
 portable-pty = "0.8"
 
+# Everything search engine integration
+chrono = "0.4"
+rayon = "1.10"
+regex = "1.10"
+
 # ══════════════════════════════════════════════════════════════
 # Windows only — .lnk resolution + GDI→PNG icon extraction
 # ══════════════════════════════════════════════════════════════
 [target.'cfg(target_os = "windows")'.dependencies]
 image = { version = "0.25", default-features = false, features = ["png"] }
 winreg = "0.55"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Ioctl", "Win32_UI_Shell", "Win32_System_IO"] }
 
 # ══════════════════════════════════════════════════════════════
 # macOS only — NSPasteboard (clipboard), NSWorkspace (icon)
