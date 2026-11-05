@@ -24,7 +24,9 @@ export function useFileActions(
 
   function saveFileStateToTab(tab: Tab) {
     store.syncToTab();
-    tab.title = store.currentDirectoryName || t("sidebar.thisPc");
+    if (!tab.isSearch) {
+      tab.title = store.currentDirectoryName || t("sidebar.thisPc");
+    }
   }
 
   function loadFileStateFromTab(tab: Tab) {

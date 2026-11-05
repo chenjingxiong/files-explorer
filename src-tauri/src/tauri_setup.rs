@@ -116,6 +116,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Install platform-specific lifecycle hooks (e.g. macOS Dock reopen).
     platform::window_provider().install_lifecycle_hooks(app.handle());
 
+    // Pre-initialize Everything engine to index drives in background on launch
+    std::thread::spawn(|| {
+        let _ = crate::search::get_everything_engine();
+    });
+
     // Signal backend ready
     let handle = app.handle().clone();
     tauri::async_runtime::spawn(async move {

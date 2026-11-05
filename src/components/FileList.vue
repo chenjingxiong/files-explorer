@@ -26,7 +26,7 @@
         <!-- Column header (details/list only) -->
         <div
             v-if="
-                currentPath &&
+                (currentPath || isSearchTab) &&
                 (view.viewMode === 'details' || view.viewMode === 'list')
             "
             class="file-list-header"
@@ -90,7 +90,7 @@
         </div>
 
         <!-- This PC view -->
-        <ThisPcView v-if="!currentPath && !store.loading" />
+        <ThisPcView v-if="!currentPath && !isSearchTab && !store.loading" />
 
         <!-- Loading state -->
         <div v-if="store.loading" class="loading-state">
@@ -100,7 +100,7 @@
 
         <!-- Directory content -->
         <div
-            v-if="currentPath && !store.loading"
+            v-if="(currentPath || isSearchTab) && !store.loading"
             class="file-items"
             :class="'view-' + view.viewMode"
             :style="colVars"
@@ -109,10 +109,17 @@
             @drop="onDrop"
         >
             <div
-                v-if="displayFiles.length === 0 && !store.loading"
+                v-if="displayFiles.length === 0 && store.isSearching"
                 class="empty-state"
             >
-                {{ t("fileList.emptyFolder") }}
+                <div class="loading-spinner" style="margin-bottom: 8px;"></div>
+                <span>{{ t("fileList.searching") }}</span>
+            </div>
+            <div
+                v-else-if="displayFiles.length === 0 && !store.loading"
+                class="empty-state"
+            >
+                {{ isSearchTab ? t("fileList.noResults", { query: activeTabData?.searchQuery || "" }) : t("fileList.emptyFolder") }}
             </div>
 
             <!-- Details & List views -->

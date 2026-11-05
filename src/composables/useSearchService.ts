@@ -34,14 +34,11 @@ export function useSearchService(
     if (ot) saveFileStateToTab(ot);
 
     const searchDir = store.currentPath || ot?.path || "";
-    if (!searchDir) {
-      showToast(t("search.noDirectory"), true);
-      return;
-    }
+    const folderDisplay = searchDir || t("fileList.thisPc");
 
     const searchTitle = t("search.resultsTabTitle", {
       query,
-      folder: searchDir,
+      folder: folderDisplay,
     });
     tabStore.addTab(fp.id, searchDir, searchTitle);
     tabStore.focusPane(fp.id);
@@ -66,21 +63,23 @@ export function useSearchService(
       truncated: boolean;
     }>("search-progress", (event) => {
       const p = event.payload;
-      if (p.files.length > 0) {
+      if (p.files && p.files.length > 0) {
         if (!nt.files) nt.files = [];
         for (const f of p.files) {
           nt.files.push(f);
         }
+        store.files = [...nt.files];
       }
       if (p.done) {
         nt.searchDone = true;
         nt.searchTotal = p.total;
+        store.files = [...(nt.files || [])];
         store.isSearching = false;
         if (p.truncated) {
           nt.title = t("search.resultsTabTruncated", {
             query,
             count: p.total,
-            folder: searchDir,
+            folder: folderDisplay,
           });
           showToast(
             t("search.resultsTruncatedHint", {
@@ -92,7 +91,7 @@ export function useSearchService(
           nt.title = t("search.resultsTab", {
             query,
             count: p.total,
-            folder: searchDir,
+            folder: folderDisplay,
           });
         }
         cleanupSearch();

@@ -22,7 +22,7 @@ export function usePanelNavigation(
       const t = p.tabs.find((x: Tab) => x.id === p.activeTabId);
       if (t) {
         loadFileStateFromTab(t);
-        if (!t.path) store.loadDrives();
+        if (!t.path && !t.isSearch) store.loadDrives();
       }
     }
   }
@@ -44,7 +44,7 @@ export function usePanelNavigation(
       const t = p.tabs.find((x: Tab) => x.id === tabId);
       if (t) {
         loadFileStateFromTab(t);
-        if (!t.path) store.loadDrives();
+        if (!t.path && !t.isSearch) store.loadDrives();
       }
     }
   }
@@ -64,7 +64,7 @@ export function usePanelNavigation(
     const t = p.tabs.find((x: Tab) => x.id === p.activeTabId);
     if (t) {
       loadFileStateFromTab(t);
-      if (!t.path) store.loadDrives();
+      if (!t.path && !t.isSearch) store.loadDrives();
     }
   }
 

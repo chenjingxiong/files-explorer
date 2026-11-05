@@ -103,9 +103,10 @@ pub fn search_files(
 
     std::thread::spawn(move || {
         let dir_path = Path::new(&dir);
-        let (filter_dir, search_query) = if !dir.is_empty() && dir != "/" && dir_path.exists() {
-            // If the folder is specific and not fully in the index yet, index it
-            if engine.get_indexed_count() < 1000 {
+        let has_dir = !dir.is_empty() && dir != "/" && dir_path.exists();
+        let (filter_dir, search_query) = if has_dir {
+            // If the folder is specific and not a root drive, index it quickly to catch any fresh files
+            if dir_path.parent().is_some() || engine.get_indexed_count() < 1000 {
                 engine.index_path(dir_path);
             }
             let mut norm = dir.replace('/', "\\");
@@ -152,7 +153,8 @@ pub fn search_files(
 
             if let Some(ref d) = filter_dir {
                 let entry_full_lower = entry.full_path.replace('/', "\\").to_lowercase();
-                if !entry_full_lower.starts_with(d) {
+                let d_no_slash = d.trim_end_matches('\\');
+                if !entry_full_lower.starts_with(d) && entry_full_lower != d_no_slash {
                     continue;
                 }
             }
