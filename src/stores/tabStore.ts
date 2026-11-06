@@ -114,6 +114,7 @@ export const useTabStore = defineStore("tab", () => {
     const newId = nid();
     p.tabs.push({ id: newId, path, title, files: [], selectedFiles: [] });
     p.activeTabId = newId;
+    triggerRef(root);
   }
   function closeTab(pid: string, tid: string) {
     const p = fpid(pid);
@@ -279,8 +280,13 @@ export const useTabStore = defineStore("tab", () => {
     triggerRef(root);
   }
 
+  function triggerRoot() {
+    triggerRef(root);
+  }
+
   return {
     rootLayout: root,
+    triggerRoot,
     getAllPanes: allPanes,
     getFocusedPane: fpane,
     getFocusedTab: ftab,

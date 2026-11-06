@@ -203,7 +203,14 @@ const activeTabData = computed(() => {
 const isSearchTab = computed(() => activeTabData.value?.isSearch ?? false);
 
 const currentFiles = computed({
-    get: () => (activeTabData.value ? activeTabData.value.files : store.files),
+    get: () => {
+        if (activeTabData.value?.isSearch) {
+            return (activeTabData.value.files && activeTabData.value.files.length > 0)
+                ? activeTabData.value.files
+                : store.files;
+        }
+        return activeTabData.value ? activeTabData.value.files : store.files;
+    },
     set: (v) => {
         if (activeTabData.value) activeTabData.value.files = v;
         else store.files = v;

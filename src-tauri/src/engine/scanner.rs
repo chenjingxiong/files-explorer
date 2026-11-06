@@ -31,8 +31,8 @@ pub fn list_windows_drives() -> Vec<PathBuf> {
                 let path_str = format!("{}:\\", letter);
                 let wide: Vec<u16> = OsStr::new(&path_str).encode_wide().chain(std::iter::once(0)).collect();
                 let dtype = unsafe { GetDriveTypeW(wide.as_ptr()) };
-                // 3 = DRIVE_FIXED. Only index fixed local drives automatically.
-                if dtype == 3 {
+                // 3 = DRIVE_FIXED, 4 = DRIVE_REMOTE, 2 = DRIVE_REMOVABLE
+                if dtype == 3 || dtype == 4 || dtype == 2 {
                     let mut flags = 0u32;
                     let ok = unsafe {
                         GetVolumeInformationW(
@@ -66,23 +66,6 @@ pub fn is_ignored_directory_name(name: &str) -> bool {
         "$RECYCLE.BIN"
             | "$Recycle.Bin"
             | "System Volume Information"
-            | "WinSxS"
-            | "servicing"
-            | "DriverStore"
-            | "Installer"
-            | "SoftwareDistribution"
-            | "Package Cache"
-            | ".git"
-            | "node_modules"
-            | "target"
-            | "dist"
-            | ".cache"
-            | "__pycache__"
-            | ".venv"
-            | "venv"
-            | "INetCache"
-            | "CrashDumps"
-            | "Temp"
     )
 }
 
@@ -116,8 +99,6 @@ pub fn scan_single_root_batched<F>(
 
     let mut stack = vec![root.to_path_buf()];
     let mut batch = Vec::with_capacity(batch_size.min(10_000));
-    let mut total_scanned = 0;
-    const MAX_FALLBACK_FILES_PER_DRIVE: usize = 100_000;
 
     let mut find_data: WIN32_FIND_DATAW = unsafe { std::mem::zeroed() };
 
@@ -131,7 +112,7 @@ pub fn scan_single_root_batched<F>(
     };
 
     while let Some(current_dir) = stack.pop() {
-        if cancel_flag.load(Ordering::Relaxed) || total_scanned >= MAX_FALLBACK_FILES_PER_DRIVE {
+        if cancel_flag.load(Ordering::Relaxed) {
             break;
         }
 
@@ -204,14 +185,8 @@ pub fn scan_single_root_batched<F>(
                         attributes: find_data.dwFileAttributes,
                     });
 
-                    total_scanned += 1;
-
                     if batch.len() >= batch_size {
                         on_batch(std::mem::take(&mut batch));
-                    }
-
-                    if total_scanned >= MAX_FALLBACK_FILES_PER_DRIVE {
-                        break;
                     }
                 }
             }
@@ -245,8 +220,6 @@ pub fn scan_single_root_batched<F>(
     use walkdir::WalkDir;
 
     let mut batch = Vec::with_capacity(batch_size.min(10_000));
-    let mut total_scanned = 0;
-    const MAX_FALLBACK_FILES_PER_DRIVE: usize = 100_000;
 
     let walker = WalkDir::new(root)
         .follow_links(false)

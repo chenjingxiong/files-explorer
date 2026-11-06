@@ -64,17 +64,17 @@ export function useSearchService(
     }>("search-progress", (event) => {
       const p = event.payload;
       if (p.files && p.files.length > 0) {
-        if (!nt.files) nt.files = [];
-        for (const f of p.files) {
-          nt.files.push(f);
-        }
+        nt.files = [...(nt.files || []), ...p.files];
         store.files = [...nt.files];
+        tabStore.triggerRoot();
       }
       if (p.done) {
         nt.searchDone = true;
         nt.searchTotal = p.total;
-        store.files = [...(nt.files || [])];
+        nt.files = [...(nt.files || [])];
+        store.files = [...nt.files];
         store.isSearching = false;
+        tabStore.triggerRoot();
         if (p.truncated) {
           nt.title = t("search.resultsTabTruncated", {
             query,
